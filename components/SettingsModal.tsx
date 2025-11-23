@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import styles from './SettingsModal.module.css';
 
 type Props = {
@@ -7,12 +7,26 @@ type Props = {
 };
 
 export default function SettingsModal({ open, onClose }: Props) {
-  const [color, setColor] = useState<string>('#229ed9');
+  const DEFAULT = '#229ed9';
+  const [color, setColor] = useState<string>(DEFAULT);
+  const [tempColor, setTempColor] = useState<string>(DEFAULT);
+  const [showPopover, setShowPopover] = useState<boolean>(false);
+  // HSV state for custom picker
+  const [hsv, setHsv] = useState<{ h: number; s: number; v: number }>({ h: 200, s: 0.6, v: 0.86 });
+  const svRef = useRef<HTMLDivElement | null>(null);
+  const hueRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     try {
       const stored = typeof window !== 'undefined' ? localStorage.getItem('chatMessageColor') : null;
-      if (stored) setColor(stored);
+      if (stored) {
+        setColor(stored);
+        setTempColor(stored);
+      }
+      else {
+        setColor(DEFAULT);
+        setTempColor(DEFAULT);
+      }
     } catch (e) {}
   }, [open]);
 
@@ -24,6 +38,12 @@ export default function SettingsModal({ open, onClose }: Props) {
     try {
       window.dispatchEvent(new CustomEvent('chat-color-changed', { detail: c }));
     } catch (e) {}
+    setColor(c);
+    setTempColor(c);
+  };
+
+  const resetColor = () => {
+    applyColor(DEFAULT);
   };
 
   // keep a CSS variable on :root in sync so components/CSS can use var(--chat-accent)
@@ -48,29 +68,179 @@ export default function SettingsModal({ open, onClose }: Props) {
     } catch (e) {}
   }, [color]);
 
+  // sync hsv when tempColor changes (convert hex -> hsv)
+  useEffect(() => {
+    try {
+      const rgb = hexToRgb(tempColor);
+      if (rgb) {
+        const _hsv = rgbToHsv(rgb.r, rgb.g, rgb.b);
+        setHsv(_hsv);
+      }
+    } catch (e) {}
+  }, [tempColor]);
+
+  // small helpers: hex <-> rgb <-> hsv
+  function clamp(v: number, a = 0, b = 1) { return Math.max(a, Math.min(b, v)); }
+
+  function hexToRgb(hex: string) {
+    if (!hex) return null;
+    const h = hex.replace('#', '');
+    const bigint = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h, 16);
+    return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 };
+  }
+
+  function rgbToHex(r: number, g: number, b: number) {
+    const toHex = (n: number) => n.toString(16).padStart(2, '0');
+    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+  }
+
+  function rgbToHsv(r:number,g:number,b:number){
+    r/=255; g/=255; b/=255;
+    const max = Math.max(r,g,b), min = Math.min(r,g,b);
+    let h=0, s=0, v=max;
+    const d = max-min;
+    s = max === 0 ? 0 : d/max;
+    if (max === min) h = 0;
+    else {
+      switch(max){
+        case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+        case g: h = (b - r) / d + 2; break;
+        case b: h = (r - g) / d + 4; break;
+      }
+      h /= 6;
+    }
+    return { h: h*360, s, v };
+  }
+
+  function hsvToRgb(h:number,s:number,v:number){
+    h = (h % 360 + 360) % 360;
+    const c = v * s;
+    const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+    const m = v - c;
+    let r = 0, g = 0, b = 0;
+    if (h < 60) { r = c; g = x; b = 0; }
+    else if (h < 120) { r = x; g = c; b = 0; }
+    else if (h < 180) { r = 0; g = c; b = x; }
+    else if (h < 240) { r = 0; g = x; b = c; }
+    else if (h < 300) { r = x; g = 0; b = c; }
+    else { r = c; g = 0; b = x; }
+    return { r: Math.round((r + m) * 255), g: Math.round((g + m) * 255), b: Math.round((b + m) * 255) };
+  }
+
+  function hsvToHex(h:number,s:number,v:number){
+    const { r, g, b } = hsvToRgb(h,s,v);
+    return rgbToHex(r,g,b);
+  }
+
   if (!open) return null;
 
   return (
     <div className={styles.overlay} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className={styles.modal}>
         <div className={styles.title}>Настройки</div>
-        <div className={styles.label}>Цвет сообщений в чате</div>
-        <div className={styles.row}>
-          <input
-            type="color"
-            value={color}
-            onChange={(e) => {
-              setColor(e.target.value);
-              applyColor(e.target.value);
-            }}
-            className={styles.colorInput}
-            aria-label="Выбор цвета сообщений"
-          />
-          <div className={styles.meta}>
-            <div className="selected">Выбранный цвет: <span style={{ fontWeight: 700 }}>{color}</span></div>
-            <div className={styles.actions}>
-              <button onClick={() => { applyColor(color); onClose(); }} className={`${styles.btn} ${styles.btnPrimary}`}>Сохранить</button>
-              <button onClick={onClose} className={`${styles.btn} ${styles.btnSecondary}`}>Отмена</button>
+
+        <div className={styles.section}>
+          <div className={styles.label}>Цвет сообщений</div>
+
+          <div className={styles.pickerRow}>
+            <div className={styles.preview}>
+              <div className={styles.previewBubble} style={{ background: tempColor }}>
+                <button
+                  type="button"
+                  className={styles.editIcon}
+                  aria-label="Открыть выбор цвета"
+                  onClick={() => setShowPopover((s) => !s)}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+                    <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z" fill="#fff" opacity="0.95"/>
+                    <path d="M20.71 7.04a1.003 1.003 0 0 0 0-1.42L18.37 3.28a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z" fill="#fff" opacity="0.95"/>
+                  </svg>
+                </button>
+              </div>
+              <div className={styles.previewMeta}>
+                <div className={styles.previewTitle}>Пример сообщения</div>
+                <div className={styles.previewSub}>Посмотрите, как будет выглядеть цвет в диалоге</div>
+              </div>
+            </div>
+
+            <div className={styles.controls}>
+              {/* color picker removed per request — only preview + buttons remain */}
+
+              <div className={styles.colorActions}>
+                <button onClick={() => { applyColor(tempColor); onClose(); }} className={`${styles.btn} ${styles.btnPrimary}`}>Сохранить</button>
+                <button onClick={() => { setTempColor(color); onClose(); }} className={`${styles.btn} ${styles.btnGhost}`}>Отмена</button>
+                <button onClick={resetColor} className={`${styles.btn} ${styles.btnReset}`} title="Сбросить цвет">Сброс</button>
+              </div>
+                {/* popover anchored to preview bubble */}
+                {showPopover && (
+                  <div className={styles.popover} role="dialog" aria-label="Выбор цвета">
+                    <div className={styles.popoverInner}>
+                      <div className={styles.popoverTitle}>Выбор цвета</div>
+                      <div className={styles.popoverBody}>
+                        <div className={styles.svPicker} ref={svRef}
+                          onPointerDown={(e) => {
+                            e.preventDefault();
+                            const move = (ev: PointerEvent) => {
+                              if (!svRef.current) return;
+                              const rect = svRef.current.getBoundingClientRect();
+                              const x = ev.clientX - rect.left;
+                              const y = ev.clientY - rect.top;
+                              const s = clamp(x / rect.width, 0, 1);
+                              const v = clamp(1 - (y / rect.height), 0, 1);
+                              setHsv(prev => {
+                                const next = { ...prev, s, v };
+                                setTempColor(hsvToHex(next.h, next.s, next.v));
+                                return next;
+                              });
+                            };
+                            const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+                            window.addEventListener('pointermove', move);
+                            window.addEventListener('pointerup', up);
+                            // initial
+                            const ev = e.nativeEvent as PointerEvent;
+                            move(ev);
+                          }}
+                        >
+                          <div className={styles.svGradient} style={{ background: `hsl(${Math.round(hsv.h)}, 100%, 50%)` }} />
+                          <div className={styles.svWhite} />
+                          <div className={styles.svBlack} />
+                          <div className={styles.svHandle} style={{ left: `${Math.round(hsv.s * 100)}%`, top: `${Math.round((1 - hsv.v) * 100)}%` }} />
+                        </div>
+
+                        <div className={styles.hueRow} ref={hueRef} onPointerDown={(e) => {
+                          e.preventDefault();
+                          const moveH = (ev: PointerEvent) => {
+                            if (!hueRef.current) return;
+                            const rect = hueRef.current.getBoundingClientRect();
+                            const x = clamp(ev.clientX - rect.left, 0, rect.width);
+                            const h = (x / rect.width) * 360;
+                            setHsv(prev => {
+                              const next = { ...prev, h };
+                              setTempColor(hsvToHex(next.h, next.s, next.v));
+                              return next;
+                            });
+                          };
+                          const upH = () => { window.removeEventListener('pointermove', moveH); window.removeEventListener('pointerup', upH); };
+                          window.addEventListener('pointermove', moveH);
+                          window.addEventListener('pointerup', upH);
+                          moveH(e.nativeEvent as PointerEvent);
+                        }}>
+                          <div className={styles.hueGradient} />
+                          <div className={styles.hueHandle} style={{ left: `${(hsv.h / 360) * 100}%` }} />
+                        </div>
+
+                        <div className={styles.popoverControls}>
+                          {/* HEX input and presets removed per request — controls area kept minimal */}
+                        </div>
+
+                        <div className={styles.popoverActions}>
+                          <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={() => { applyColor(tempColor); setShowPopover(false); }}>Готово</button>
+                          <button className={`${styles.btn} ${styles.btnGhost}`} onClick={() => { setTempColor(color); setShowPopover(false); }}>Отмена</button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
             </div>
           </div>
         </div>

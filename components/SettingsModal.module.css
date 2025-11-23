@@ -1,112 +1,208 @@
 .overlay {
   position: fixed;
-  left: 0;
-  top: 0;
-  right: 0;
-  bottom: 0;
+  inset: 0;
   z-index: 2000;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.4);
+  background: linear-gradient(rgba(8,10,12,0.6), rgba(8,10,12,0.6));
+  backdrop-filter: blur(4px);
 }
 
 .modal {
-  width: 420px;
-  max-width: 92%;
-  background: #0e0f12;
-  border-radius: 12px;
-  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
-  padding: 18px;
+  width: 440px;
+  max-width: 96%;
+  background: linear-gradient(180deg, #0c0d0f, #0f1013);
+  border-radius: 14px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255,255,255,0.02);
+  padding: 20px;
   color: #fff;
   box-sizing: border-box;
+  border: 1px solid rgba(255,255,255,0.03);
 }
 
 .title {
-  text-align: center;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 700;
-  margin-bottom: 12px;
+  letter-spacing: 0.2px;
+  margin-bottom: 14px;
+  text-align: left;
+}
+
+.section {
+  background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.006));
+  border-radius: 10px;
+  padding: 14px;
 }
 
 .label {
-  margin-bottom: 10px;
   font-size: 13px;
-  color: #bbb;
+  color: #bdbdbd;
+  margin-bottom: 12px;
+  display: block;
 }
 
-.row {
+.pickerRow {
   display: flex;
   gap: 12px;
   align-items: center;
+  position: relative; /* anchor for the popover */
 }
 
-.colorInput {
-  width: 56px;
-  height: 36px;
-  border: none;
-  background: transparent;
+.preview {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  min-width: 180px;
+}
+
+.previewBubble {
+  width: 48px;
+  height: 40px;
+  position: relative;
+  border-radius: 12px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.5), inset 0 -1px 0 rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.04);
+}
+
+.editIcon {
+  position: absolute;
+  right: -4px;
+  top: -4px;
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,255,255,0.06);
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.03);
+  color: #fff;
   cursor: pointer;
-  padding: 0;
+  transition: background .12s ease, transform .08s ease;
+}
+.editIcon:hover { background: rgba(255,255,255,0.09); transform: translateY(-1px); }
+
+/* dark popover */
+.popover {
+  position: absolute;
+  top: 48px;
+  left: 96px;
+  z-index: 2200;
+}
+.popoverInner {
+  min-width: 260px;
+  max-width: 320px;
+  background: linear-gradient(180deg, #0e0f11, #0b0b0c);
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.04);
+  box-shadow: 0 12px 36px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.02);
+  padding: 12px;
+  color: #fff;
+}
+.svPicker { position: relative; height: 160px; border-radius: 8px; overflow: hidden; }
+.svGradient { position:absolute; inset:0; }
+.svWhite { position:absolute; inset:0; background: linear-gradient(90deg, rgba(255,255,255,1), rgba(255,255,255,0)); }
+.svBlack { position:absolute; inset:0; background: linear-gradient(180deg, rgba(0,0,0,0), rgba(0,0,0,1)); }
+.svHandle { position:absolute; width:14px; height:14px; border-radius: 50%; border:2px solid #fff; box-shadow: 0 3px 8px rgba(0,0,0,0.6); transform: translate(-50%, -50%); pointer-events:none; }
+
+.hueRow { height: 14px; border-radius: 8px; margin-top: 8px; position: relative; overflow: hidden; }
+.hueGradient { position:absolute; inset:0; background: linear-gradient(90deg, #f00 0%, #ff0 16.6%, #0f0 33.3%, #0ff 50%, #00f 66.6%, #f0f 83.3%, #f00 100%); }
+.hueHandle { position:absolute; top:50%; width:14px; height:14px; border-radius:50%; border:2px solid #fff; box-shadow: 0 3px 8px rgba(0,0,0,0.6); transform: translate(-50%, -50%); pointer-events:none; }
+
+.hexLabel { font-size:12px; color:#cfd3d6; display:flex; align-items:center; gap:8px; }
+.hexInput { background: rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.04); color:#fff; padding:6px 8px; border-radius:6px; width:100px; }
+.popoverTitle { font-weight: 700; font-size: 13px; margin-bottom: 8px; }
+.popoverBody { display: flex; flex-direction: column; gap: 10px; }
+.popoverColorInput { width: 100%; height: 80px; border-radius: 8px; border: none; padding: 0; cursor: pointer; }
+.popoverControls { display:flex; gap:8px; align-items:center; justify-content:space-between; }
+.hexLabel { display:none; }
+.hexInput { display:none; }
+.presets { display:none; }
+.swatch { display:none; }
+.popoverActions { display:flex; gap:8px; justify-content:flex-end; }
+
+.previewMeta {
+  display: flex;
+  flex-direction: column;
 }
 
-.meta {
-  flex: 1;
-}
-
-.meta .selected {
+.previewTitle {
+  font-weight: 700;
+  color: #fff;
   font-size: 13px;
-  color: #ddd;
 }
 
-.actions {
-  margin-top: 8px;
+.previewSub {
+  font-size: 12px;
+  color: #9ea3a8;
+}
+
+.controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-left: 0;
+}
+
+/* new custom tile wrapper and hidden native input */
+
+/* color input removed; using only preview + action buttons now */
+
+
+.colorActions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  /* make button group line up with the color tile */
+  height: 40px;
+
+  /* Ensure buttons inside are vertically centered */
+  align-items: center;
+}
+
+/* Make buttons a consistent height so they line up perfectly */
+.btn {
+  min-height: 36px;
+  padding: 8px 12px;
 }
 
 .btn {
   padding: 8px 12px;
-  border-radius: 8px;
+  border-radius: 10px;
   border: none;
   color: #fff;
   cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .btnPrimary {
   background: var(--chat-accent, #229ed9);
+  box-shadow: 0 6px 18px var(--chat-accent-shadow, rgba(34,158,217,0.2));
 }
 
-.btnSecondary {
-  background: #222;
-  margin-left: 8px;
+.btnGhost {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.04);
+  color: #d5d7d9;
 }
 
-/* Mobile styles: make this a bottom sheet and stack actions */
+.btnReset {
+  background: transparent;
+  color: #f0a4a4;
+  border: 1px dashed rgba(255,255,255,0.04);
+}
+
+/* Bottom sheet on small screens */
 @media (max-width: 600px) {
-  .overlay {
-    align-items: flex-end;
-    justify-content: center;
-  }
-
-  .modal {
-    width: 100%;
-    max-width: 100%;
-    border-radius: 12px 12px 0 0;
-    padding: 14px;
-    box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.6);
-  }
-
-  .row {
-    gap: 10px;
-    align-items: flex-start;
-  }
-
-  .actions {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .btnSecondary {
-    margin-left: 0;
-  }
+  .overlay { align-items: flex-end; }
+  .modal { width: 100%; border-radius: 12px 12px 0 0; padding: 16px; }
+  .pickerRow { flex-direction: column; align-items: stretch; }
+  .preview { margin-bottom: 10px; }
+  .controls { margin-left: 0; justify-content: space-between; }
+  .colorActions { gap: 6px; }
 }
