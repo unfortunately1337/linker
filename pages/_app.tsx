@@ -406,7 +406,8 @@ function MainApp({ Component, pageProps }: AppProps) {
 
 export default function App(props: AppProps) {
   return (
-    <SessionProvider session={props.pageProps.session}>
+    // Tune session polling to be less chatty. refetchInterval is in seconds.
+    <SessionProvider session={props.pageProps.session} refetchInterval={300} refetchOnWindowFocus={false}>
       <SWRConfig value={swrConfig}>
         <CallProvider>
           <MainApp {...props} />

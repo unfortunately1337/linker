@@ -64,6 +64,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(403).json({ error: 'You can only delete your own messages' });
     }
 
+    // Protect media messages (voice/video) from being deleted — these must be persistent.
+    if (msg.audioUrl || msg.videoUrl) {
+      console.log('[DELETE MESSAGE] Attempt to delete media message blocked:', id, { audioUrl: !!msg.audioUrl, videoUrl: !!msg.videoUrl });
+      return res.status(403).json({ error: 'Media messages (voice/video) cannot be deleted' });
+    }
+
     // Удаляем сообщение из базы данных сразу — это основная операция
     console.log('[DELETE MESSAGE] Deleting message from database:', id);
     let deleted;

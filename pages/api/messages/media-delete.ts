@@ -53,6 +53,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: 'Invalid target path' });
     }
 
+    // Prevent deleting files that are referenced by messages (voice/video) — media messages must stay persisted
+    try {
+      const msgRef = await require('../../../lib/prisma').default.message.findFirst({ where: { OR: [{ audioUrl: { contains: filename } }, { videoUrl: { contains: filename } }] } });
+      if (msgRef) {
+        console.warn('[MEDIA-DELETE] Attempt to delete media file referenced by message:', filename, 'user:', session.user.id);
+        return res.status(403).json({ error: 'Cannot delete media file that is referenced by a message' });
+      }
+    } catch (e) {
+      console.warn('[MEDIA-DELETE] DB lookup failed (continuing):', e?.message || e);
+    }
+
+    // Only allow deletion of orphaned media files by the uploader (filename must contain user id)
+    const userId = String(session.user.id);
+    if (!filename.includes(userId)) {
+      console.warn('[MEDIA-DELETE] Reject deletion of orphaned media not owned by requestor:', filename, 'user:', userId);
+      return res.status(403).json({ error: 'Forbidden — cannot delete media you do not own' });
+    }
+
     if (fs.existsSync(normalizedTarget)) {
       try {
         await fs.promises.unlink(normalizedTarget);

@@ -14,7 +14,8 @@ export const fetcher = (input: RequestInfo, init?: RequestInit) =>
 
 export const swrConfig: Partial<SWRConfiguration> = {
   fetcher,
-  revalidateOnFocus: true,
+  // don't revalidate automatically on window focus to avoid extra server calls from frequent focus toggles
+  revalidateOnFocus: false,
   dedupingInterval: 2000,
   errorRetryCount: 1,
 };
