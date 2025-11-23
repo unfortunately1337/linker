@@ -61,7 +61,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(403).json({ error: 'Cannot delete media file that is referenced by a message' });
       }
     } catch (e) {
-      console.warn('[MEDIA-DELETE] DB lookup failed (continuing):', e?.message || e);
+      // `e` is unknown in TS catch, use safe fallback logging
+      const msg = (e && (e as any).message) ? (e as any).message : String(e);
+      console.warn('[MEDIA-DELETE] DB lookup failed (continuing):', msg);
     }
 
     // Only allow deletion of orphaned media files by the uploader (filename must contain user id)
