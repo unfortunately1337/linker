@@ -667,12 +667,6 @@ const ChatWithFriend: React.FC = () => {
 
   // Accept the whole message object so we can handle both persisted and temp-uploaded messages.
   const handleDeleteMessage = async (msg: Message) => {
-    // Protect media messages: they must not be deletable
-    if (msg.audioUrl || msg.videoUrl) {
-      try { (window as any).toast && (window as any).toast('Медиа-сообщения (голос/видео) нельзя удалить'); } catch {}
-      setOpenActionMsgId(null);
-      return;
-    }
     // Optimistic removal: remove from UI immediately, try to delete on server.
     setMessages(prev => prev.filter(m => m.id !== msg.id));
     setOpenActionMsgId(null);
@@ -1339,7 +1333,6 @@ const ChatWithFriend: React.FC = () => {
                                     <rect x="8" y="5" width="13" height="13" rx="2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
                                   </svg>
                                 </button>
-                                {!(msg.audioUrl || msg.videoUrl) ? (
                                 <button
                                   onClick={(e) => { try { e.stopPropagation(); } catch {} handleDeleteMessage(msg); }}
                                   title="Удалить"
@@ -1354,15 +1347,6 @@ const ChatWithFriend: React.FC = () => {
                                     <path d="M14 11v6" stroke="#ff6b6b" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
                                   </svg>
                                 </button>
-                                ) : (
-                                  <button title="Удаление недоступно" aria-label="Удаление недоступно" style={{ background: 'transparent', border: 'none', padding: 8, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#777', borderRadius: 8 }} disabled>
-                                    <svg width={18} height={18} viewBox="0 0 24 24" fill="none" style={{ display: 'block' }}>
-                                      <path d="M9 3h6l1 2h4v2H4V5h4l1-2z" fill="none" stroke="#777" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-                                      <path d="M10 11v6" stroke="#777" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                                      <path d="M14 11v6" stroke="#777" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                                    </svg>
-                                  </button>
-                                )}
                               </div>
                             )}
                           </div>
