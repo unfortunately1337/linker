@@ -167,9 +167,13 @@ export default function SettingsModal({ open, onClose }: Props) {
               {/* color picker removed per request — only preview + buttons remain */}
 
               <div className={styles.colorActions}>
-                <button onClick={() => { applyColor(tempColor); onClose(); }} className={`${styles.btn} ${styles.btnPrimary}`}>Сохранить</button>
-                <button onClick={() => { setTempColor(color); onClose(); }} className={`${styles.btn} ${styles.btnGhost}`}>Отмена</button>
-                <button onClick={resetColor} className={`${styles.btn} ${styles.btnReset}`} title="Сбросить цвет">Сброс</button>
+                <div className={styles.colorActionsTop}>
+                  <button onClick={() => { applyColor(tempColor); onClose(); }} className={`${styles.btn} ${styles.btnPrimary}`}>Сохранить</button>
+                  <button onClick={() => { setTempColor(color); onClose(); }} className={`${styles.btn} ${styles.btnGhost}`}>Отмена</button>
+                </div>
+                <div className={styles.colorActionsBottom}>
+                  <button onClick={resetColor} className={`${styles.btn} ${styles.btnReset}`} title="Сбросить цвет">Сброс</button>
+                </div>
               </div>
                 {/* popover anchored to preview bubble */}
                 {showPopover && (

@@ -152,14 +152,15 @@
 
 .colorActions {
   display: flex;
+  flex-direction: column; /* two rows: top (Save/Cancel) and bottom (Reset) */
   gap: 8px;
-  align-items: center;
-  /* make button group line up with the color tile */
-  height: 40px;
-
-  /* Ensure buttons inside are vertically centered */
-  align-items: center;
+  align-items: flex-start;
+  height: auto;
 }
+
+.colorActionsTop { display: flex; gap: 8px; align-items: center; }
+.colorActionsTop { transform: translateY(-6px); }
+.colorActionsBottom { margin-left: 68px; /* indent Reset a bit under the top row */ transform: translateY(6px); }
 
 /* Make buttons a consistent height so they line up perfectly */
 .btn {
@@ -193,7 +194,7 @@
 
 .btnReset {
   background: transparent;
-  color: #f0a4a4;
+  color: #64b5f6;
   border: 1px dashed rgba(255,255,255,0.04);
 }
 
@@ -204,5 +205,7 @@
   .pickerRow { flex-direction: column; align-items: stretch; }
   .preview { margin-bottom: 10px; }
   .controls { margin-left: 0; justify-content: space-between; }
-  .colorActions { gap: 6px; }
+  .colorActions { gap: 6px; flex-direction: row; align-items: center; }
+  .colorActionsBottom { margin-left: 0; transform: none; }
+  .colorActionsTop { transform: none; }
 }

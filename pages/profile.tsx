@@ -1,6 +1,7 @@
 import { getUser } from "../lib/session";
 import { forbiddenPasswords } from "../lib/forbidden-passwords";
 import { FaUserCircle, FaCog, FaShieldAlt, FaPalette, FaLaptop, FaMobileAlt, FaDesktop, FaSignOutAlt, FaQrcode } from "react-icons/fa";
+import styles from "../components/SettingsProfile.module.css";
 import React, { useState, useEffect, useRef } from "react";
 import { motion } from 'framer-motion';
 import UserStatus, { UserStatusType, statusLabels } from "../components/UserStatus";
@@ -209,6 +210,9 @@ export default function ProfilePage() {
   const [friends, setFriends] = useState<any[]>([]);
   const [sessions, setSessions] = useState<any[]>([]);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [newLogin, setNewLogin] = useState<string>("");
+  const [newLink, setNewLink] = useState<string>("");
+  const [loading, setLoading] = useState<boolean>(false);
   const currentSessionId = session && session.user ? (session.user as any).sessionId : null;
   const [prefersReduced, setPrefersReduced] = useState<boolean>(true);
   useEffect(() => {
@@ -446,7 +450,7 @@ export default function ProfilePage() {
         {/* Settings button — top-right of the profile panel, borderless */}
         {session && session.user && user && session.user.id === user.id && (
           <button
-            onClick={() => { setSettingsTab(null); setShowSettings(true); }}
+            onClick={() => { setSettingsTab('customization'); setShowSettings(true); }}
             title="Настройки"
             aria-label="Open settings"
             style={{
@@ -689,7 +693,7 @@ export default function ProfilePage() {
                 <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 12, color: '#fff' }}>Вы уверены, что хотите удалить друга?</div>
                 <div style={{ color: '#bfc9cf', marginBottom: 20 }}>Это действие удалит чат и историю сообщений с этим пользователем.</div>
                 <div style={{ display: "flex", gap: 14, justifyContent: "center", alignItems: 'center' }}>
-                  <button onClick={handleRemoveFriend} style={{ background: "linear-gradient(180deg,#ff6b6b,#e04141)", color: "#fff", border: "none", borderRadius: 10, padding: "10px 26px", fontSize: 15, fontWeight: 700, cursor: "pointer", boxShadow: "0 6px 18px rgba(224,65,65,0.26)" }}>Да, удалить</button>
+                  <button onClick={handleRemoveFriend} style={{ background: "linear-gradient(180deg,#1a3a52,#0f2438)", color: "#64b5f6", border: "none", borderRadius: 10, padding: "10px 26px", fontSize: 15, fontWeight: 700, cursor: "pointer", boxShadow: "0 6px 18px rgba(26,58,82,0.26)" }}>Да, удалить</button>
                   <button onClick={() => setRemoveFriendId(null)} style={{ background: "transparent", color: "#d1d7db", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, padding: "10px 22px", fontSize: 15, fontWeight: 700, cursor: "pointer" }}>Отменить</button>
                 </div>
               </div>
@@ -740,7 +744,7 @@ export default function ProfilePage() {
                             alert('Не удалось завершить сессию');
                           }
                         } catch (e) { alert('Ошибка'); }
-                      }} style={{ background: 'transparent', color: '#ff6b6b', border: 'none', padding: '6px 10px', cursor: 'pointer', fontWeight: 600 }}>Завершить</button>
+                      }} style={{ background: 'transparent', color: '#64b5f6', border: 'none', padding: '6px 10px', cursor: 'pointer', fontWeight: 600 }}>Завершить</button>
                     </div>
                   )}
                 </div>
@@ -779,431 +783,583 @@ export default function ProfilePage() {
 
       {/* Модальное окно настроек */}
       {showSettings && (
-  <div style={{ position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", background: "#000a", zIndex: 9999, display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: 6, animation: "fadeIn 0.3s" }}>
-          <div style={{ background: "#23242a", borderRadius: 18, padding: 28, minWidth: 320, boxShadow: "0 2px 24px #0008", color: "#fff", position: "relative", transition: "box-shadow 0.3s, background 0.3s, min-width 200ms", maxHeight: "80vh", overflowY: "auto", scrollbarWidth: "none" }}>
-  <button onClick={() => setShowSettings(false)} aria-label="Close settings" style={{ position: "absolute", top: 12, right: 12, zIndex: 120, background: "none", border: "none", color: "#fff", fontSize: 22, cursor: "pointer", transition: "color 0.2s" }} onMouseOver={e => {e.currentTarget.style.color="#4fc3f7"}} onMouseOut={e => {e.currentTarget.style.color="#fff"}}>✕</button>
+        <div className={styles.overlay}>
+          <div className={styles.modal}>
+            {/* Close button */}
+            <button
+              className={styles.close}
+              onClick={() => setShowSettings(false)}
+              title="Закрыть"
+            >
+              ✕
+            </button>
 
-      {/* Compact header with avatar + vertical menu (matches provided mock)
-        the header block shows user's profile background up to the divider line */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 18,
-        background: 'transparent',
-        borderRadius: 12, padding: 12 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{ position: 'relative', width: 76, height: 76, borderRadius: 12, overflow: 'visible', background: 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <div style={{ width: 64, height: 64, borderRadius: 10, overflow: 'hidden', background: 'transparent', position: 'relative' }}>
-                    <img src={avatar || "https://www.svgrepo.com/show/452030/avatar-default.svg"} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+            {/* Left sidebar with profile info and navigation */}
+            <div className={styles.sidebar}>
+              {/* Profile header */}
+              <div className={styles.profileHeader}>
+                <div className={styles.profileHeaderContent}>
+                  <div className={styles.avatar}>
+                    <img
+                      src={avatar || "https://www.svgrepo.com/show/452030/avatar-default.svg"}
+                      alt="avatar"
+                    />
                   </div>
-                  {/* status indicator positioned overlapping bottom-right corner of avatar */}
-                  {user?.status === 'dnd' ? (
-                    <img src="/moon-dnd.svg" alt="dnd" style={{ position: 'absolute', right: -6, bottom: -6, width: 20, height: 20, zIndex: 3 }} />
-                  ) : (
-                    <span style={{ position: 'absolute', right: -6, bottom: -6, width: 12, height: 12, borderRadius: '50%', background: user?.status === 'online' ? '#1ed760' : '#bbb', zIndex: 3 }} />
-                  )}
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{ fontSize: 16, fontWeight: 700, color: '#fff' }}>{user?.link ? `@${user.link}` : (user?.login || 'Профиль')}</div>
+                  <div className={styles.profileInfo}>
+                    <div className={styles.username}>
+                      {user?.link ? `@${user.link}` : (user?.login || "Профиль")}
+                    </div>
                     {roleIconSrc && (
-                      <img src={roleIconSrc} alt="role" style={{ width: 18, height: 18, borderRadius: 6 }} />
+                      <img
+                        src={roleIconSrc}
+                        alt="role"
+                        style={{ width: 14, height: 14, marginTop: 4 }}
+                      />
                     )}
+                    <div className={styles.usernameSmall}>Настройки</div>
                   </div>
-                  <div style={{ fontSize: 13, color: '#bfbfbf' }}>{desc || 'Нет описания'}</div>
                 </div>
               </div>
-              <div style={{ height: 1, background: 'linear-gradient(90deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02))', borderRadius: 2 }} />
 
-                <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 8, padding: 6 }}>
-                  {/* animated grey rounded indicator behind selected button */}
-                  <div style={{ position: 'absolute', left: 6, right: 6, height: menuButtonHeight, borderRadius: 10, background: '#2e3033', top: menuIndicatorTop, transition: 'top 220ms cubic-bezier(.2,.9,.2,1), opacity 160ms', zIndex: settingsTab ? 0 : -1, opacity: settingsTab ? 1 : 0 }} />
-                  <button onClick={() => setSettingsTab('customization')} style={{ textAlign: 'left', padding: '10px 12px', height: menuButtonHeight, borderRadius: 10, background: settingsTab === 'customization' ? 'transparent' : 'transparent', border: 'none', color: '#fff', cursor: 'pointer', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 12, position: 'relative', zIndex: 1, transition: 'color 180ms' }}>
-                    <FaPalette style={{ fontSize: 16, color: settingsTab === 'customization' ? '#fff' : '#bbb', marginLeft: 2 }} />
-                    <span style={{ color: settingsTab === 'customization' ? '#fff' : '#ddd' }}>Кастомизация</span>
-                  </button>
-                  <button onClick={() => setSettingsTab('security')} style={{ textAlign: 'left', padding: '10px 12px', height: menuButtonHeight, borderRadius: 10, background: settingsTab === 'security' ? 'transparent' : 'transparent', border: 'none', color: '#fff', cursor: 'pointer', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 12, position: 'relative', zIndex: 1, transition: 'color 180ms' }}>
-                    <FaShieldAlt style={{ fontSize: 16, color: settingsTab === 'security' ? '#fff' : '#bbb', marginLeft: 2 }} />
-                    <span style={{ color: settingsTab === 'security' ? '#fff' : '#ddd' }}>Безопасность</span>
-                  </button>
-                  <button onClick={() => setSettingsTab('privacy')} style={{ textAlign: 'left', padding: '10px 12px', height: menuButtonHeight, borderRadius: 10, background: settingsTab === 'privacy' ? 'transparent' : 'transparent', border: 'none', color: '#fff', cursor: 'pointer', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 12, position: 'relative', zIndex: 1, transition: 'color 180ms' }}>
-                    <FaUserCircle style={{ fontSize: 16, color: settingsTab === 'privacy' ? '#fff' : '#bbb', marginLeft: 2 }} />
-                    <span style={{ color: settingsTab === 'privacy' ? '#fff' : '#ddd' }}>Конфиденциальность</span>
-                  </button>
-                </div>
+              {/* Menu */}
+              <div className={styles.menu}>
+                <button
+                  className={`${styles.menuItem} ${settingsTab === 'customization' ? styles.active : ''}`}
+                  onClick={() => setSettingsTab('customization')}
+                >
+                  <FaPalette size={16} />
+                  <span>Оформление</span>
+                </button>
+                <button
+                  className={`${styles.menuItem} ${settingsTab === 'security' ? styles.active : ''}`}
+                  onClick={() => setSettingsTab('security')}
+                >
+                  <FaShieldAlt size={16} />
+                  <span>Безопасность</span>
+                </button>
+                <button
+                  className={`${styles.menuItem} ${settingsTab === 'privacy' ? styles.active : ''}`}
+                  onClick={() => setSettingsTab('privacy')}
+                >
+                  <FaUserCircle size={16} />
+                  <span>Статус</span>
+                </button>
+              </div>
             </div>
 
-            {/* Panels */}
-            {settingsTab === 'security' && (
-              <>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                  <FaShieldAlt style={{ color: '#bbb', fontSize: 22 }} />
-                  <span style={{ color: '#bbb', fontWeight: 700, fontSize: 17, letterSpacing: 0.5 }}>Безопасность</span>
-                </div>
-                <div style={{ marginBottom: 22, marginLeft: 0, maxWidth: 320, transition: "box-shadow 0.2s, background 0.2s" }}>
-              <label style={{ fontSize: 15, fontWeight: 500 }}>Смена пароля</label><br />
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <input
-                  type={showPassword ? "text" : "password"}
-                  value={newPassword}
-                  onChange={e => {
-                    setNewPassword(e.target.value);
-                    setPasswordError("");
-                  }}
-                  style={{ marginTop: 6, width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid #444", background: "#18191c", color: "#fff", fontSize: 15 }}
-                  autoComplete="new-password"
-                />
-                <button
-                  type="button"
-                  style={{ marginTop: 6, background: "#23242a", color: "#fff", border: "1px solid #444", borderRadius: 8, padding: "8px 10px", fontSize: 15, cursor: "pointer", fontWeight: 500 }}
-                  onClick={() => setShowPassword(v => !v)}
-                  title={showPassword ? "Скрыть пароль" : "Показать пароль"}
-                >{showPassword ? "🙈" : "👁️"}</button>
-              </div>
-              <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                <button
-                  style={{ background: "#18191c", color: "#fff", border: "1px solid #444", borderRadius: 8, padding: "8px 18px", fontSize: 15, cursor: "pointer", fontWeight: 500 }}
-                  onClick={async () => {
-                    if (!user || !newPassword) return;
-                    if (forbiddenPasswords.includes(newPassword)) {
-                      setToastType('error');
-                      setToastMsg('Слишком простой пароль!');
-                      setShowToast(true);
-                      return;
-                    }
-                    await fetch('/api/profile', {
-                      method: 'POST',
-                      credentials: 'include',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ userId: user.id, password: newPassword })
-                    });
-                    setNewPassword("");
-                    setToastType('success');
-                    setToastMsg('Пароль изменён! Вы же его сохранили?');
-                    setShowToast(true);
-                  }}
-                >Сменить пароль</button>
-                <button
-                  type="button"
-                  style={{ background: "#23242a", color: "#fff", border: "1px solid #444", borderRadius: 8, padding: "8px 18px", fontSize: 15, cursor: "pointer", fontWeight: 500 }}
-                  onClick={() => {
-                    // Генерация пароля
-                    const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*_+-";
-                    let pass = "";
-                    for (let i = 0; i < 12; i++) pass += charset[Math.floor(Math.random() * charset.length)];
-                    setNewPassword(pass);
-                    setPasswordError("");
-                    setTimeout(() => {
-                      try {
-                        const input = document.querySelector('input[type="password"],input[type="text"]');
-                        if (input) (input as HTMLInputElement).focus();
-                        // Триггерим событие input для браузера
-                        if (input) {
-                          const event = new Event('input', { bubbles: true });
-                          input.dispatchEvent(event);
-                        }
-                      } catch {}
-                    }, 100);
-                  }}
-                  title="Сгенерировать безопасный пароль"
-                >Сгенерировать</button>
-              </div>
-              {showToast && (
-                <ToastNotification
-                  type={toastType}
-                  message={toastMsg}
-                  duration={3000}
-                  onClose={() => setShowToast(false)}
-                />
-              )}
-            </div>
-            {/* 2FA (улучшенный UX) */}
-            <div style={{ marginBottom: 22, marginLeft: 0, maxWidth: 420, padding: '16px 0', borderRadius: 10, background: '#18191c', boxShadow: '0 1px 6px #0002', display: 'flex', alignItems: 'flex-start', gap: 18 }}>
-              <FaShieldAlt style={{ color: has2FA ? '#1ed760' : '#bbb', fontSize: 22, marginLeft: 12, marginTop: 4 }} />
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 600, fontSize: 15, color: '#fff' }}>Двухфакторная аутентификация</div>
-                <div style={{ fontSize: 13, color: has2FA ? '#1ed760' : '#bbb', marginTop: 2, marginBottom: 8 }}>
-                  {has2FA ? 'Включена' : 'Отключена'}
-                </div>
-                {has2FA && (
-                  <div style={{ fontSize: 13, color: '#bbb', marginBottom: 8 }}>
-                    <div style={{ marginBottom: 8 }}>При входе в аккаунт запросится 6-значный код.</div>
-                    <button
-                      style={{ background: '#e74c3c', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 14, cursor: 'pointer', fontWeight: 600 }}
-                      onClick={handleDisable2FA}
-                      disabled={disableLoading}
-                    >{disableLoading ? 'Отключаем...' : 'Отключить 2FA'}</button>
+            {/* Right content area */}
+            <div className={styles.content}>
+              {/* Customization */}
+              {settingsTab === 'customization' && (
+                <>
+                  <div className={styles.contentHeader}>
+                    <FaPalette className={styles.contentHeaderIcon} />
+                    <span className={styles.contentHeaderTitle}>Оформление профиля</span>
                   </div>
-                )}
-                {!has2FA && (
-                  <div>
-                    <button
-                      style={{ background: '#1ed760', color: '#23242a', border: 'none', borderRadius: 8, padding: '8px 18px', fontSize: 15, cursor: 'pointer', fontWeight: 600, minWidth: 110 }}
-                      onClick={handleEnable2FA}
-                      disabled={setupLoading}
-                    >{setupLoading ? 'Генерация...' : 'Включить 2FA'}</button>
-                    {showSetup && (
-                      <div style={{ marginTop: 12, padding: 14, background: 'transparent', borderRadius: 10, border: 'none', boxShadow: 'none' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-                          {setupQr ? (
-                            <div style={{ width: 176, height: 176, padding: 10, background: '#fff', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto' }}>
-                              <img src={setupQr} alt="QR" style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: 8 }} />
-                            </div>
-                          ) : (
-                            <div style={{ width: 176, height: 176, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#111', borderRadius: 12, color: '#555', margin: '0 auto' }}>Загрузка...</div>
-                          )}
-                          <div style={{ width: 360, maxWidth: '100%', textAlign: 'center' }}>
-                            <div style={{ color: '#fff', fontSize: 15, fontWeight: 700, marginBottom: 6 }}>Настройка Google Authenticator</div>
-                            <div style={{ color: '#bbb', fontSize: 13, marginBottom: 10 }}>Отсканируйте QR-код в приложении-генераторе кодов (Google Authenticator, Authy и т.д.).</div>
-                            <div style={{ color: '#aaa', fontSize: 12, marginBottom: 6 }}>Если не можете сканировать, используйте секрет:</div>
-                            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
-                              <div style={{ flex: 1, fontFamily: 'monospace', background: '#151618', color: '#e6eef6', padding: '8px 10px', borderRadius: 8, border: '1px solid #26292b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{setupSecret}</div>
-                              <button onClick={() => { if (setupSecret) { navigator.clipboard.writeText(setupSecret); alert('Секрет скопирован'); } }} style={{ padding: '8px 10px', borderRadius: 8, background: '#2f3336', border: 'none', color: '#fff', cursor: 'pointer' }}>Копировать</button>
-                            </div>
-                            <CodeInput value={verificationCode} onChange={setVerificationCode} length={6} disabled={verifyLoading} />
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
-                              <button onClick={handleVerifySetup} disabled={verifyLoading} style={{ width: '100%', padding: '12px 14px', borderRadius: 8, background: '#4fc3f7', border: 'none', color: '#092024', fontWeight: 700, cursor: 'pointer' }}>{verifyLoading ? 'Проверка...' : 'Подтвердить'}</button>
-                              <button onClick={() => { setShowSetup(false); setSetupQr(null); setSetupSecret(null); setVerificationCode(''); }} style={{ width: '100%', padding: '12px 14px', borderRadius: 8, background: '#232629', border: '1px solid #1a1c1d', color: '#ddd', cursor: 'pointer' }}>Отменить</button>
-                            </div>
-                          </div>
+                  <div className={styles.contentBody}>
+                    {/* Change login section */}
+                    <div className={styles.section}>
+                      <span className={styles.sectionTitle}>Смена логина</span>
+                      <div className={styles.card}>
+                        <label className={styles.cardLabel}>Новый логин</label>
+                        <div className={styles.inputGroup}>
+                          <input
+                            type="text"
+                            className={styles.cardInput}
+                            placeholder="Введите новый логин"
+                            value={newLogin}
+                            onChange={(e) => setNewLogin(e.target.value)}
+                          />
+                          <button
+                            className={`${styles.btn} ${styles.btnPrimary}`}
+                            onClick={async () => {
+                              if (!newLogin || !user) return;
+                              setLoading(true);
+                              const res = await fetch('/api/profile/change-login', {
+                                method: 'POST',
+                                credentials: 'include',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ newLogin })
+                              });
+                              const data = await res.json();
+                              if (res.ok) {
+                                setToastMsg('Логин успешно изменён!');
+                                setShowToast(true);
+                                setUser(data.user);
+                                setNewLogin('');
+                                fetch(`/api/profile?userId=${data.user.id}`).then(r => r.json()).then(profile => setFriends(profile.user.friends || [])).catch(()=>{});
+                                try { localStorage.setItem('user', JSON.stringify({ id: data.user.id, login: data.user.login, link: data.user.link || null })); } catch {}
+                              } else {
+                                if (data.error === 'Login is already taken') {
+                                  setToastMsg('Логин уже занят.');
+                                } else {
+                                  setToastMsg(data.error || 'Ошибка при смене логина');
+                                }
+                                setShowToast(true);
+                              }
+                              setLoading(false);
+                            }}
+                            disabled={loading}
+                          >
+                            {loading ? '...' : 'Сменить'}
+                          </button>
+                        </div>
+                        {showToast && toastMsg && (
+                          <ToastNotification
+                            type={toastMsg === "Логин успешно изменён!" ? "success" : "error"}
+                            message={toastMsg}
+                            duration={3000}
+                            onClose={() => setShowToast(false)}
+                          />
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Change link section */}
+                    <div className={styles.section}>
+                      <span className={styles.sectionTitle}>Смена линка</span>
+                      <div className={styles.card}>
+                        <label className={styles.cardLabel}>Ваш линк (@link)</label>
+                        <div className={styles.inputGroup}>
+                          <input
+                            type="text"
+                            className={styles.cardInput}
+                            placeholder="link"
+                            value={newLink}
+                            onChange={(e) => setNewLink(e.target.value)}
+                          />
+                          <button
+                            className={`${styles.btn} ${styles.btnPrimary}`}
+                            onClick={async () => {
+                              if (!newLink || !user) return;
+                              const re = /^[A-Za-z0-9_]{3,32}$/;
+                              if (!re.test(newLink)) {
+                                setToastMsg('Неверный формат линка');
+                                setShowToast(true);
+                                return;
+                              }
+                              setLoading(true);
+                              const res = await fetch('/api/profile/change-link', {
+                                method: 'POST',
+                                credentials: 'include',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ newLink })
+                              });
+                              const data = await res.json();
+                              if (res.ok) {
+                                setUser(data.user);
+                                setNewLink('');
+                                setToastMsg('Юзернейм успешно изменён!');
+                                setShowToast(true);
+                                try {
+                                  localStorage.setItem('user', JSON.stringify({
+                                    id: data.user.id,
+                                    login: data.user.login,
+                                    link: data.user.link || null
+                                  }));
+                                } catch {}
+                              } else {
+                                if (data.error === 'Link is already taken') setToastMsg('Юзернейм уже занят');
+                                else setToastMsg(data.error || 'Ошибка при смене юзернейма');
+                                setShowToast(true);
+                              }
+                              setLoading(false);
+                            }}
+                            disabled={loading}
+                          >
+                            {loading ? '...' : 'Сменить'}
+                          </button>
                         </div>
                       </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-            </>
-            )}
+                    </div>
 
-            {settingsTab === 'customization' && (
-              <>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                  <FaPalette style={{ color: '#bbb', fontSize: 22 }} />
-                  <span style={{ color: '#bbb', fontWeight: 700, fontSize: 17, letterSpacing: 0.5 }}>Кастомизация</span>
-                </div>
-                <ChangeLoginForm user={user} setUser={setUser} setFriends={setFriends} />
-                <ChangeLinkForm user={user} setUser={setUser} setFriends={setFriends} />
-                <div style={{ marginBottom: 22, marginLeft: 0, maxWidth: 320, transition: "box-shadow 0.2s, background 0.2s" }}>
-              <label style={{ fontSize: 15, fontWeight: 500 }}>Описание:</label><br />
-              <input type="text" value={desc} onChange={e => setDesc(e.target.value)} style={{ marginTop: 6, width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid #444", background: "#18191c", color: "#fff", fontSize: 15 }} />
-              <button
-                style={{ marginTop: 10, background: "#18191c", color: "#fff", border: "1px solid #444", borderRadius: 8, padding: "8px 18px", fontSize: 15, cursor: "pointer", fontWeight: 500 }}
-                onClick={async () => {
-                  if (!user) return;
-                  await fetch('/api/profile', {
-                    method: 'POST',
-                    credentials: 'include',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userId: user.id, description: desc })
-                  });
-                  // Обновить профиль после сохранения
-                  fetch(`/api/profile?userId=${user.id}`)
-                    .then(r => r.json())
-                    .then(data => {
-                      setDesc(data.user.description || "");
-                    });
-                }}
-              >Сохранить</button>
-            </div>
-            <div style={{ marginBottom: 22, marginLeft: 0, maxWidth: 320, transition: "box-shadow 0.2s, background 0.2s" }}>
-              <label style={{ fontSize: 15, fontWeight: 500 }}>Аватарка (URL):</label><br />
-              <input type="text" value={avatar} onChange={e => setAvatar(e.target.value)} style={{ marginTop: 6, width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid #444", background: "#18191c", color: "#fff", fontSize: 15 }} />
-              <button
-                style={{ marginTop: 10, background: "#18191c", color: "#fff", border: "1px solid #444", borderRadius: 8, padding: "8px 18px", fontSize: 15, cursor: "pointer", fontWeight: 500 }}
-                onClick={async () => {
-                  if (!user) return;
-                  // Генерация 2FA setup (пример, если нужно)
-                  await fetch('/api/2fa/setup', {
-                    credentials: 'same-origin',
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ login: user.login })
-                  });
-                  // Сохраняем аватарку
-                  await fetch('/api/profile', {
-                    method: 'POST',
-                    credentials: 'include',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userId: user.id, avatar })
-                  });
-                  // Обновить профиль после сохранения
-                  fetch(`/api/profile?userId=${user.id}`)
-                    .then(r => r.json())
-                    .then(data => {
-                      setAvatar(data.user.avatar || "");
-                      try { window.dispatchEvent(new Event('profile-updated')); } catch (e) {}
-                    });
-                }}
-              >Сохранить</button>
-            </div>
-            <div style={{ marginBottom: 22, marginLeft: 0, maxWidth: 320, transition: "box-shadow 0.2s, background 0.2s" }}>
-              <label style={{ fontSize: 15, fontWeight: 500 }}>Фон чата и профиля</label><br />
-              <input type="text" value={backgroundUrl} onChange={e => setBackgroundUrl(e.target.value)} style={{ marginTop: 6, width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid #444", background: "#18191c", color: "#fff", fontSize: 15 }} placeholder="" />
-              <div style={{ marginTop: 12 }}>
-                <label style={{ fontSize: 15, fontWeight: 500 }}>Выделенность фона: {bgOpacity}%</label><br />
-                <input
-                  type="range"
-                  min={1}
-                  max={100}
-                  value={bgOpacity}
-                  onChange={e => {
-                    const val = Number(e.target.value);
-                    setBgOpacity(val);
-                    try {
-                      localStorage.setItem('profileBgOpacity', String(val));
-                    } catch {}
-                  }}
-                  style={{ width: "100%", marginTop: 6 }}
-                />
-              </div>
-              <button
-                style={{ marginTop: 10, background: "#18191c", color: "#fff", border: "1px solid #444", borderRadius: 8, padding: "8px 18px", fontSize: 15, cursor: "pointer", fontWeight: 500 }}
-                onClick={async () => {
-                  if (!user) return;
-                  await fetch('/api/profile', {
-                    method: 'POST',
-                    credentials: 'include',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userId: user.id, backgroundUrl })
-                  });
-                  // Обновить профиль после сохранения
-                  fetch(`/api/profile?userId=${user.id}`)
-                    .then(r => r.json())
-                    .then(data => {
-                      setBackgroundUrl(data.user.backgroundUrl || "");
-                    });
-                  // Сохраняем видимость в localStorage
-                  try {
-                    localStorage.setItem('profileBgOpacity', String(bgOpacity));
-                  } catch {}
-                }}
-              >Сохранить</button>
-              </div>
-              </>
-            )}
-              {settingsTab === 'privacy' && (
-                <>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                    <FaUserCircle style={{ color: '#bbb', fontSize: 22 }} />
-                    <span style={{ color: '#bbb', fontWeight: 700, fontSize: 17, letterSpacing: 0.5 }}>Конфиденциальность</span>
-                  </div>
-                  <div style={{ marginBottom: 22, marginLeft: 0, maxWidth: 320, transition: "box-shadow 0.2s, background 0.2s", background: '#18191c', borderRadius: 10, boxShadow: '0 1px 6px #0002', padding: '16px 0' }}>
-                    <label style={{ fontSize: 15, fontWeight: 500, marginBottom: 8, display: 'block' }}></label>
-                    <div style={{ display: 'flex', gap: 24, alignItems: 'center', marginTop: 8, justifyContent: 'center' }}>
-                      <button
-                        key="online_priv"
-                        style={{
-                          background: user?.status === 'online' ? '#23242a' : '#18191c',
-                          border: user?.status === 'online' ? '2px solid #4caf50' : '1px solid #444',
-                          borderRadius: '50%',
-                          width: 38,
-                          height: 38,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          cursor: 'pointer',
-                          transition: 'border 0.2s',
-                          outline: 'none',
-                          boxShadow: user?.status === 'online' ? '0 2px 8px #4caf5044' : 'none'
-                        }}
-                        title={statusLabels['online']}
-                        onClick={async () => {
-                          if (!user) return;
-                          await fetch('/api/profile', {
-                            method: 'POST',
-                            credentials: 'include',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ userId: user.id, status: 'online' })
-                          });
-                          setUser({ ...user, status: 'online' });
-                        }}
-                      >
-                        <UserStatus status="online" size={18} />
-                      </button>
-                      <button
-                        key="offline_priv"
-                        style={{
-                          background: user?.status === 'offline' ? '#23242a' : '#18191c',
-                          border: user?.status === 'offline' ? '2px solid #9e9e9e' : '1px solid #444',
-                          borderRadius: '50%',
-                          width: 38,
-                          height: 38,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          cursor: 'pointer',
-                          transition: 'border 0.2s',
-                          outline: 'none',
-                          boxShadow: user?.status === 'offline' ? '0 2px 8px #9e9e9e44' : 'none'
-                        }}
-                        title={statusLabels['offline']}
-                        onClick={async () => {
-                          if (!user) return;
-                          await fetch('/api/profile', {
-                            method: 'POST',
-                            credentials: 'include',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ userId: user.id, status: 'offline' })
-                          });
-                          setUser({ ...user, status: 'offline' });
-                        }}
-                      >
-                        <UserStatus status="offline" size={18} />
-                      </button>
-                      <button
-                        key="dnd_priv"
-                        style={{
-                          background: user?.status === 'dnd' ? '#23242a' : '#18191c',
-                          border: user?.status === 'dnd' ? '2px solid #b8b814' : '1px solid #444',
-                          borderRadius: '50%',
-                          width: 38,
-                          height: 38,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          cursor: 'pointer',
-                          transition: 'border 0.2s',
-                          outline: 'none',
-                          boxShadow: user?.status === 'dnd' ? '0 2px 8px #4fc3f744' : 'none'
-                        }}
-                        title={statusLabels['dnd']}
-                        onClick={async () => {
-                          if (!user) return;
-                          await fetch('/api/profile', {
-                            method: 'POST',
-                            credentials: 'include',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ userId: user.id, status: 'dnd' })
-                          });
-                          setUser({ ...user, status: 'dnd' });
-                        }}
-                      >
-                        <img src="/moon-dnd.svg" alt="Не беспокоить" style={{ width: 18, height: 18, verticalAlign: 'middle' }} />
-                      </button>
+                    {/* Description section */}
+                    <div className={styles.section}>
+                      <span className={styles.sectionTitle}>О себе</span>
+                      <div className={styles.card}>
+                        <label className={styles.cardLabel}>Описание профиля</label>
+                        <textarea
+                          className={styles.cardInput}
+                          placeholder="Расскажите о себе..."
+                          value={desc}
+                          onChange={(e) => setDesc(e.target.value)}
+                          style={{ minHeight: 80, resize: 'vertical' }}
+                        />
+                        <button
+                          className={`${styles.btn} ${styles.btnPrimary}`}
+                          style={{ marginTop: 8 }}
+                          onClick={async () => {
+                            if (!user) return;
+                            await fetch('/api/profile', {
+                              method: 'POST',
+                              credentials: 'include',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ userId: user.id, description: desc })
+                            });
+                            setToastMsg('Описание сохранено');
+                            setToastType('success');
+                            setShowToast(true);
+                          }}
+                        >
+                          Сохранить
+                        </button>
+                      </div>
                     </div>
-                    <div style={{ marginTop: 18, padding: '0', color: '#fff', fontSize: 15, fontWeight: 500, textAlign: 'center', minHeight: 44 }}>
-                      {user?.status === 'online' && (
-                        <>
-                          <span style={{ color: '#4caf50', fontWeight: 700 }}>В сети</span><br />
-                          Все ваши друзья будут видеть что вы в онлайне.
-                        </>
-                      )}
-                      {user?.status === 'offline' && (
-                        <>
-                          <span style={{ color: '#9e9e9e', fontWeight: 700 }}>Не в сети</span><br />
-                          Анонимный статус, никто не сможет видеть вас, зато сможете видеть вы.
-                        </>
-                      )}
-                      {user?.status === 'dnd' && (
-                        <>
-                          <span style={{ color: '#b8b814', fontWeight: 700 }}>Не беспокоить</span><br />
-                          Уведомления о новых сообщениях и заявках отключены, но вы в сети.
-                        </>
-                      )}
+
+                    {/* Avatar section */}
+                    <div className={styles.section}>
+                      <span className={styles.sectionTitle}>Аватарка</span>
+                      <div className={styles.card}>
+                        <label className={styles.cardLabel}>URL аватарки</label>
+                        <input
+                          type="text"
+                          className={styles.cardInput}
+                          placeholder="https://example.com/avatar.jpg"
+                          value={avatar}
+                          onChange={(e) => setAvatar(e.target.value)}
+                        />
+                        <button
+                          className={`${styles.btn} ${styles.btnPrimary}`}
+                          style={{ marginTop: 8 }}
+                          onClick={async () => {
+                            if (!user) return;
+                            await fetch('/api/profile', {
+                              method: 'POST',
+                              credentials: 'include',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ userId: user.id, avatar })
+                            });
+                            try {
+                              window.dispatchEvent(new Event('profile-updated'));
+                            } catch {}
+                            setToastMsg('Аватарка сохранена');
+                            setToastType('success');
+                            setShowToast(true);
+                          }}
+                        >
+                          Сохранить
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Background section */}
+                    <div className={styles.section}>
+                      <span className={styles.sectionTitle}>Фон профиля</span>
+                      <div className={styles.card}>
+                        <label className={styles.cardLabel}>URL фона</label>
+                        <input
+                          type="text"
+                          className={styles.cardInput}
+                          placeholder="https://example.com/bg.jpg"
+                          value={backgroundUrl}
+                          onChange={(e) => setBackgroundUrl(e.target.value)}
+                        />
+                        <label className={styles.cardLabel} style={{ marginTop: 12 }}>
+                          Яркость фона: {bgOpacity}%
+                        </label>
+                        <input
+                          type="range"
+                          min="1"
+                          max="100"
+                          value={bgOpacity}
+                          onChange={(e) => {
+                            const val = Number(e.target.value);
+                            setBgOpacity(val);
+                            try {
+                              localStorage.setItem('profileBgOpacity', String(val));
+                            } catch {}
+                          }}
+                          className={styles.cardInput}
+                          style={{ marginTop: 6 }}
+                        />
+                        <button
+                          className={`${styles.btn} ${styles.btnPrimary}`}
+                          style={{ marginTop: 8 }}
+                          onClick={async () => {
+                            if (!user) return;
+                            await fetch('/api/profile', {
+                              method: 'POST',
+                              credentials: 'include',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ userId: user.id, backgroundUrl })
+                            });
+                            setToastMsg('Фон сохранён');
+                            setToastType('success');
+                            setShowToast(true);
+                          }}
+                        >
+                          Сохранить
+                        </button>
+                      </div>
                     </div>
                   </div>
-                  
                 </>
               )}
-            {/* Вставка любимой песни удалена по запросу пользователя */}
+
+              {/* Security */}
+              {settingsTab === 'security' && (
+                <>
+                  <div className={styles.contentHeader}>
+                    <FaShieldAlt className={styles.contentHeaderIcon} />
+                    <span className={styles.contentHeaderTitle}>Безопасность</span>
+                  </div>
+                  <div className={styles.contentBody}>
+                    {/* Password section */}
+                    <div className={styles.section}>
+                      <span className={styles.sectionTitle}>Пароль</span>
+                      <div className={styles.card}>
+                        <label className={styles.cardLabel}>Новый пароль</label>
+                        <div className={styles.inputGroup}>
+                          <input
+                            type={showPassword ? "text" : "password"}
+                            className={styles.cardInput}
+                            placeholder="Введите новый пароль"
+                            value={newPassword}
+                            onChange={(e) => {
+                              setNewPassword(e.target.value);
+                              setPasswordError("");
+                            }}
+                            autoComplete="new-password"
+                          />
+                          <button
+                            className={`${styles.btn} ${styles.btnSecondary}`}
+                            onClick={() => setShowPassword(!showPassword)}
+                            title={showPassword ? "Скрыть" : "Показать"}
+                          >
+                            {showPassword ? "🙈" : "👁️"}
+                          </button>
+                        </div>
+                        <div className={styles.btnGroup}>
+                          <button
+                            className={`${styles.btn} ${styles.btnPrimary}`}
+                            onClick={async () => {
+                              if (!user || !newPassword) return;
+                              if (forbiddenPasswords.includes(newPassword)) {
+                                setToastMsg('Слишком простой пароль!');
+                                setToastType('error');
+                                setShowToast(true);
+                                return;
+                              }
+                              await fetch('/api/profile', {
+                                method: 'POST',
+                                credentials: 'include',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ userId: user.id, password: newPassword })
+                              });
+                              setNewPassword("");
+                              setToastMsg('Пароль изменён!');
+                              setToastType('success');
+                              setShowToast(true);
+                            }}
+                          >
+                            Сменить пароль
+                          </button>
+                          <button
+                            className={`${styles.btn} ${styles.btnSecondary}`}
+                            onClick={() => {
+                              const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*_+-";
+                              let pass = "";
+                              for (let i = 0; i < 12; i++) pass += charset[Math.floor(Math.random() * charset.length)];
+                              setNewPassword(pass);
+                            }}
+                            title="Сгенерировать надёжный пароль"
+                          >
+                            Сгенерировать
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 2FA section */}
+                    <div className={styles.section}>
+                      <span className={styles.sectionTitle}>Двухфакторная аутентификация</span>
+                      <div className={`${styles.twoFACard} ${!has2FA ? styles.disabled : ''}`}>
+                        <div className={styles.twoFAIcon}>
+                          <FaShieldAlt size={20} />
+                        </div>
+                        <div className={styles.twoFAContent}>
+                          <div className={styles.twoFATitle}>2FA Google Authenticator</div>
+                          <div className={`${styles.twoFAStatus} ${!has2FA ? styles.disabled : ''}`}>
+                            {has2FA ? '✓ Включена' : 'Отключена'}
+                          </div>
+                          <div className={styles.twoFADescription}>
+                            {has2FA
+                              ? 'Двухфакторная аутентификация защищает ваш аккаунт.'
+                              : 'Добавьте дополнительный уровень защиты с помощью 2FA.'}
+                          </div>
+                          {has2FA ? (
+                            <button
+                              className={`${styles.btn} ${styles.btnDanger}`}
+                              onClick={handleDisable2FA}
+                              disabled={disableLoading}
+                            >
+                              {disableLoading ? 'Отключаем...' : 'Отключить 2FA'}
+                            </button>
+                          ) : (
+                            <button
+                              className={`${styles.btn} ${styles.btnPrimary}`}
+                              onClick={handleEnable2FA}
+                              disabled={setupLoading}
+                            >
+                              {setupLoading ? 'Генерация...' : 'Включить 2FA'}
+                            </button>
+                          )}
+
+                          {/* QR Setup Modal */}
+                          {showSetup && setupQr && (
+                            <div className={styles.qrSetup}>
+                              <div className={styles.qrContainer}>
+                                <img src={setupQr} alt="QR Code" />
+                              </div>
+                              <div className={styles.qrInfo}>
+                                <div className={styles.qrTitle}>Отсканируйте QR-код</div>
+                                <div className={styles.qrDescription}>
+                                  Используйте Google Authenticator или Authy для сканирования кода
+                                </div>
+                                <div className={styles.secretContainer}>
+                                  <code className={styles.secret}>{setupSecret}</code>
+                                  <button
+                                    className={`${styles.btn} ${styles.btnSecondary} ${styles.btnSmall}`}
+                                    onClick={() => {
+                                      if (setupSecret) {
+                                        navigator.clipboard.writeText(setupSecret);
+                                        alert('Секрет скопирован');
+                                      }
+                                    }}
+                                  >
+                                    Копировать
+                                  </button>
+                                </div>
+                                <div className={styles.codeInputContainer}>
+                                  <CodeInput
+                                    value={verificationCode}
+                                    onChange={setVerificationCode}
+                                    length={6}
+                                    disabled={verifyLoading}
+                                  />
+                                </div>
+                                <div className={styles.btnGroup} style={{ width: '100%' }}>
+                                  <button
+                                    className={`${styles.btn} ${styles.btnPrimary}`}
+                                    style={{ flex: 1 }}
+                                    onClick={handleVerifySetup}
+                                    disabled={verifyLoading}
+                                  >
+                                    {verifyLoading ? 'Проверка...' : 'Подтвердить'}
+                                  </button>
+                                  <button
+                                    className={`${styles.btn} ${styles.btnSecondary}`}
+                                    style={{ flex: 1 }}
+                                    onClick={() => {
+                                      setShowSetup(false);
+                                      setSetupQr(null);
+                                      setSetupSecret(null);
+                                      setVerificationCode('');
+                                    }}
+                                  >
+                                    Отмена
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* Privacy/Status */}
+              {settingsTab === 'privacy' && (
+                <>
+                  <div className={styles.contentHeader}>
+                    <FaUserCircle className={styles.contentHeaderIcon} />
+                    <span className={styles.contentHeaderTitle}>Статус онлайна</span>
+                  </div>
+                  <div className={styles.contentBody}>
+                    <div className={styles.section}>
+                      <span className={styles.sectionTitle}>Выберите статус</span>
+                      <div className={styles.card}>
+                        <div className={styles.statusButtons}>
+                          <button
+                            className={`${styles.statusBtn} ${user?.status === 'online' ? styles.active : ''}`}
+                            onClick={async () => {
+                              if (!user) return;
+                              await fetch('/api/profile', {
+                                method: 'POST',
+                                credentials: 'include',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ userId: user.id, status: 'online' })
+                              });
+                              setUser({ ...user, status: 'online' });
+                            }}
+                            title="В сети"
+                          >
+                            <UserStatus status="online" size={20} />
+                          </button>
+                          <button
+                            className={`${styles.statusBtn} ${user?.status === 'offline' ? styles.active : ''}`}
+                            onClick={async () => {
+                              if (!user) return;
+                              await fetch('/api/profile', {
+                                method: 'POST',
+                                credentials: 'include',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ userId: user.id, status: 'offline' })
+                              });
+                              setUser({ ...user, status: 'offline' });
+                            }}
+                            title="Не в сети"
+                          >
+                            <UserStatus status="offline" size={20} />
+                          </button>
+                          <button
+                            className={`${styles.statusBtn} ${user?.status === 'dnd' ? styles.active : ''}`}
+                            onClick={async () => {
+                              if (!user) return;
+                              await fetch('/api/profile', {
+                                method: 'POST',
+                                credentials: 'include',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ userId: user.id, status: 'dnd' })
+                              });
+                              setUser({ ...user, status: 'dnd' });
+                            }}
+                            title="Не беспокоить"
+                          >
+                            <img src="/moon-dnd.svg" alt="DND" style={{ width: 20, height: 20 }} />
+                          </button>
+                        </div>
+                        <div className={styles.statusDescription}>
+                          {user?.status === 'online' && (
+                            <>
+                              <strong style={{ color: '#1ed760' }}>В сети</strong>
+                              <br />
+                              Все друзья видят, что вы онлайн
+                            </>
+                          )}
+                          {user?.status === 'offline' && (
+                            <>
+                              <strong style={{ color: '#9e9e9e' }}>Не в сети</strong>
+                              <br />
+                              Ваш статус скрыт от друзей
+                            </>
+                          )}
+                          {user?.status === 'dnd' && (
+                            <>
+                              <strong style={{ color: '#b8b814' }}>Не беспокоить</strong>
+                              <br />
+                              Вы онлайн, но уведомления отключены
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}
