@@ -238,12 +238,14 @@ export default function ProfilePage() {
     fetch(`/api/profile?userId=${session.user.id}`)
       .then(r => r.json())
       .then(data => {
+        console.log('Profile loaded:', data.user);
         setUser(data.user);
         setHas2FA(!!data.user.twoFactorEnabled);
         setUserRole(data.user.role || "user");
         setDesc(data.user.description || "");
         setAvatar(data.user.avatar || "");
   setBackgroundUrl(data.user.backgroundUrl || "");
+  console.log('Avatar:', data.user.avatar, 'BG URL:', data.user.backgroundUrl);
   // Не трогаем bgOpacity из API, используем localStorage
         setFriends(data.user.friends || []);
         setSessions((data.user.sessions || []).filter((s: any) => s.isActive));

@@ -5,12 +5,14 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/router';
 const ToastNotification = dynamic(() => import('./ToastNotification'), { ssr: false });
 import SettingsModal from '../../components/SettingsModal';
+import styles from '../../styles/Chat.module.css';
 
 interface Chat {
   id: string;
   name?: string | null;
-  users: { id: string; login: string; link?: string | null; avatar?: string | null; role?: string }[];
+  users: { id: string; login: string; link?: string | null; avatar?: string | null; role?: string; backgroundUrl?: string | null }[];
   unreadCount?: number;
+  lastMessage?: LastMessage | null;
 }
 
 interface LastMessage {
@@ -126,6 +128,7 @@ const ChatPage: React.FC = () => {
         lm[chat.id] = null;
       }
     }
+    console.log('lastMessages loaded:', lm);
     setLastMessages(lm);
   };
 
@@ -217,8 +220,11 @@ const ChatPage: React.FC = () => {
       if (!isGroup) {
         const src = (other && other.avatar) ? other.avatar : '/window.svg';
         return (
-          <div style={{ position: 'relative', width: 44, height: 44 }}>
-            <img src={src} alt="avatar" style={{width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', background: '#444'}} />
+          <div className={styles.chatItemAvatar}>
+            {other?.backgroundUrl && (
+              <img src={other.backgroundUrl} alt="background" className={styles.chatItemAvatarImg} style={{ opacity: 0.6 }} />
+            )}
+            <img src={src} alt="avatar" className={styles.chatItemAvatarImg} />
             {/* status overlay in chat list: show only online or dnd */}
             {((other as any)?.status === 'online') && (
               <span style={{ position: 'absolute', right: 0, bottom: 0, width: 12, height: 12, borderRadius: '50%', background: '#1ed760', border: '2px solid #0f1113' }} />
@@ -249,67 +255,34 @@ const ChatPage: React.FC = () => {
       <a
         key={chat.id}
         href={`/chat/${isGroup ? chat.id : chat.users.find(u => u.id !== meId)?.id}`}
-        style={{
-          display: 'flex', alignItems: 'center', gap: 18, padding: '18px 28px', borderRadius: 14,
-          background: itemBackground, boxShadow: '0 2px 8px #2222',
-          transition: 'background 0.2s', textDecoration: 'none', cursor: 'pointer'
-        }}
+        className={styles.chatItem}
       >
-  {renderAvatar()}
-  <div style={{display:'flex',flexDirection:'column',flex:1, minWidth: 0}}>
-          <span style={{fontWeight: 600, fontSize: 20, color: '#e3e8f0', display:'flex',alignItems:'center',gap:8}}>
+        {renderAvatar()}
+        <div className={styles.chatItemInfo}>
+          <span className={styles.chatItemTitle}>
             {title || 'Группа'}
-            {role === 'admin' && <img src="/role-icons/admin.svg" alt="admin" style={{width:20, height:20, marginLeft:4}} />}
-            {role === 'moderator' && <img src="/role-icons/moderator.svg" alt="moderator" style={{width:20, height:20, marginLeft:4}} />}
-            {role === 'verif' && <img src="/role-icons/verif.svg" alt="verif" style={{width:20, height:20, marginLeft:4}} />}
+            {role === 'admin' && <img src="/role-icons/admin.svg" alt="admin" className={styles.chatItemTitleIcon} />}
+            {role === 'moderator' && <img src="/role-icons/moderator.svg" alt="moderator" className={styles.chatItemTitleIcon} />}
+            {role === 'verif' && <img src="/role-icons/verif.svg" alt="verif" className={styles.chatItemTitleIcon} />}
           </span>
-          {/* group member list removed from chat preview; group name will be shown inside the chat */}
-          {}
-          {false ? (
-            <span style={{fontSize: 13, color: '#4fc3f7', display: 'flex', alignItems: 'center', gap: 4}}>
-              Печатает
-              <span style={{display:'inline-flex',alignItems:'center',height:16}}>
-                <span className="typing-dot" style={{width:6,height:6,borderRadius:'50%',background:'#4fc3f7',margin:'0 2px',opacity:0.7,animation:'typingDot 1.2s infinite',animationDelay:'0s'}} />
-                <span className="typing-dot" style={{width:6,height:6,borderRadius:'50%',background:'#4fc3f7',margin:'0 2px',opacity:0.7,animation:'typingDot 1.2s infinite',animationDelay:'0.3s'}} />
-                <span className="typing-dot" style={{width:6,height:6,borderRadius:'50%',background:'#4fc3f7',margin:'0 2px',opacity:0.7,animation:'typingDot 1.2s infinite',animationDelay:'0.6s'}} />
-              </span>
-              <style>{`
-                @keyframes typingDot {
-                  0% { transform: translateY(0); opacity: 0.7; }
-                  20% { transform: translateY(-4px); opacity: 1; }
-                  40% { transform: translateY(0); opacity: 0.7; }
-                }
-              `}</style>
-            </span>
-          ) : lastMessages[chat.id] && (
+          {lastMessages[chat.id] && (
             lastMessages[chat.id]?.videoUrl ? (
-              /* компактный вид для видеосообщения: ограничиваем ширину превью, не даём расширять элемент списка */
-              <div className="last-preview" style={{display:'flex',alignItems:'center',gap:6}}>
+              <div className={styles.chatItemPreview}>
                 <VideoPlayCircle videoUrl={lastMessages[chat.id]!.videoUrl!} />
-                <span className="last-preview-text" style={{fontSize: 13, color: '#4fc3f7', lineHeight: '1', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>Видеосообщение</span>
+                <span style={{fontSize: 13, color: '#64b5f6'}}>Видео</span>
               </div>
             ) : lastMessages[chat.id]?.audioUrl ? (
-              <span className="last-preview" style={{fontSize: 13, color: '#4fc3f7', display:'flex',alignItems:'center',gap:6}}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style={{display:'inline'}} xmlns="http://www.w3.org/2000/svg"><path d="M8 5v14l11-7z" fill="#4fc3f7"/></svg>
-                <span className="last-preview-text" style={{whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>Голосовое сообщение</span>
+              <span className={styles.chatItemPreview}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8 5v14l11-7z" fill="#64b5f6"/></svg>
+                <span style={{fontSize: 13, color: '#64b5f6'}}>Голос</span>
               </span>
-            ) : (
-              <div style={{display:'flex',flexDirection:'column'}}>
-                <span style={{fontSize: 13, color: '#bbb'}}>
-                  {lastMessages[chat.id]!.text.length > 60
-                    ? lastMessages[chat.id]!.text.slice(0, 60) + '...'
-                    : lastMessages[chat.id]!.text}
-                </span>
-                {/* Removed textual status from chat list — only avatar icons remain */}
-                {/* 
-                {(!isGroup && (other as any)?.status && ((other as any).status === 'online' || (other as any).status === 'dnd')) && (
-                  <span style={{fontSize: 12, color: (other as any).status === 'online' ? '#229ed9' : '#9aa0a6', marginTop: 6}}>
-                    {(other as any).status === 'online' ? 'В сети' : 'Не беспокоить'}
-                  </span>
-                )}
-                */}
-              </div>
-            )
+            ) : lastMessages[chat.id]?.text ? (
+              <span className={styles.chatItemPreview}>
+                {lastMessages[chat.id]!.text.length > 40
+                  ? lastMessages[chat.id]!.text.slice(0, 40) + '...'
+                  : lastMessages[chat.id]!.text}
+              </span>
+            ) : null
           )}
         </div>
       </a>
@@ -319,64 +292,27 @@ const ChatPage: React.FC = () => {
   // Group info modal via click was removed: clicking a chat (group or 1:1) navigates into the chat directly
 
   return (
-    <div style={{minHeight: '100vh', width: '100vw', background: '#111', fontFamily: 'Segoe UI, Arial, sans-serif', margin: 0, padding: 0, position: 'relative'}}>
-      <div style={{maxWidth: 500, margin: '0 auto', paddingTop: 60}}>
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10, position: 'relative'}}>
-          <div style={{width:44}}>
-            <button
-              aria-label="Настройки"
-              title="Настройки"
-              onClick={() => setShowSettingsModal(true)}
-              style={{ background: 'transparent', border: 'none', padding: 6, margin: 0, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
-            >
-              {/* Use the public/settings.svg file instead of the inline gear SVG */}
-              <img src="/settings.svg" alt="Настройки" width={20} height={20} style={{display:'block'}} />
-            </button>
-          </div>
-          <div style={{display:'flex', alignItems:'center', gap:8}}>
-            <h2 style={{color: '#e3e8f0', fontWeight: 700, fontSize: 28, textAlign: 'center', margin: 0}}>Чаты</h2>
-          </div>
-          {/* create button intentionally removed */}
+    <div className={styles.chatContainer}>
+      <div className={styles.chatContent}>
+        <div className={styles.chatHeader}>
+          <button
+            aria-label="Настройки"
+            title="Настройки"
+            onClick={() => setShowSettingsModal(true)}
+            className={styles.headerButton}
+          >
+            <img src="/settings.svg" alt="Настройки" width={20} height={20} style={{display:'block'}} />
+          </button>
+          <h2 className={styles.headerTitle}>Чаты</h2>
           <div style={{width:44}} />
         </div>
         {chats.length === 0 ? (
-          <div style={{color: '#bbb', fontSize: 20, textAlign: 'center', marginTop: 80}}>Нет чатов.<br />Создайте группу или добавьте друзей!</div>
+          <div className={styles.chatListEmpty}>Нет чатов.<br />Создайте группу или добавьте друзей!</div>
         ) : (
-          <div style={{
-            display: 'flex', flexDirection: 'column', gap: 18,
-            maxHeight: '65vh', overflowY: 'auto',
-            scrollbarWidth: 'thin',
-            scrollbarColor: '#4fc3f7cc #222',
-          }}
-            className="chat-list-scroll"
-          >
-              {/* moved scrollbar styles to the global style block below to avoid nested styled-jsx tags */}
+          <div className={styles.chatList}>
             {chatList}
           </div>
         )}
-        <style jsx global>{`
-          /* Scrollbar styles for chat list (kept here to avoid nested styled-jsx) */
-          .chat-list-scroll::-webkit-scrollbar {
-            width: 7px;
-            background: transparent;
-          }
-          .chat-list-scroll::-webkit-scrollbar-thumb {
-            background: rgba(79,195,247,0.25);
-            border-radius: 6px;
-            transition: background 0.2s;
-          }
-          .chat-list-scroll:hover::-webkit-scrollbar-thumb {
-            background: rgba(79,195,247,0.45);
-          }
-
-          /* Prevent last-message previews from expanding chat item width */
-          .last-preview { min-width: 0; max-width: 100%; }
-          .last-preview-text { display: block; max-width: 100%; vertical-align: middle; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-          @media (max-width: 480px) {
-            .last-preview-text { max-width: 140px; font-size: 12px; }
-          }
-        `}</style>
-        {/* Плавное уведомление справа снизу с индикатором времени */}
         <SettingsModal open={showSettingsModal} onClose={() => setShowSettingsModal(false)} />
 
         {toast && (

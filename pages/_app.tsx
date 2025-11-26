@@ -23,7 +23,7 @@ function MainApp({ Component, pageProps }: AppProps) {
   const [bottomToast, setBottomToast] = useState<null | { type: 'error' | 'success'; message: string; duration?: number; actions?: any[] }>(null);
 
   // Главная страница доступна всем, редирект убран
-  const hideSidebarRoutes = ["/auth/login", "/auth/register", "/"];
+  const hideSidebarRoutes = ["/auth/login", "/auth/register", "/", "/chat/[id]"];
   const showSidebar = !hideSidebarRoutes.includes(router.pathname);
 
     // Elms Sans should be applied only on specific pages. We'll whitelist routes.

@@ -10,6 +10,7 @@ import { useRouter } from 'next/router';
 import UserStatus, { statusLabels } from '../../components/UserStatus';
 import { useSession } from 'next-auth/react';
 import { useCall } from '../../components/CallProvider';
+import styles from '../../styles/Chat.module.css';
 
 // Инициализация Pusher
 const VoiceMessage: React.FC<{ audioUrl: string; isOwn?: boolean }> = ({ audioUrl, isOwn }) => {
@@ -130,6 +131,30 @@ const ChatWithFriend: React.FC = () => {
   const router = useRouter();
   const { id } = router.query;
   const { data: session, status } = useSession();
+  
+  // Prevent page scrolling on chat page - only container scrolls
+  useEffect(() => {
+    if (typeof document !== 'undefined' && typeof window !== 'undefined') {
+      // Store original values
+      const originalHtmlOverflow = document.documentElement.style.overflow;
+      const originalBodyOverflow = document.body.style.overflow;
+      const originalHtmlHeight = document.documentElement.style.height;
+      const originalBodyHeight = document.body.style.height;
+      
+      // Set fixed viewport
+      document.documentElement.style.overflow = 'hidden';
+      document.documentElement.style.height = '100vh';
+      document.body.style.overflow = 'hidden';
+      document.body.style.height = '100vh';
+      
+      return () => {
+        document.documentElement.style.overflow = originalHtmlOverflow;
+        document.documentElement.style.height = originalHtmlHeight;
+        document.body.style.overflow = originalBodyOverflow;
+        document.body.style.height = originalBodyHeight;
+      };
+    }
+  }, []);
   
   const [messages, setMessages] = useState<Message[]>([]);
   // Исправить тип friend, чтобы поддерживать login, name, avatar, role
@@ -986,15 +1011,12 @@ const ChatWithFriend: React.FC = () => {
           .chat-messages-scroll:hover::-webkit-scrollbar-thumb {
             opacity: 0.8;
           }
-          /* Анимация появления сообщения — мягкая и не дергающаяся.
-             Предотвращаем резкий "подлет" при замене temp->server (см. onNewMessage ниже). */
           .chat-msg-appear {
             animation: chatMsgFadeIn 0.32s cubic-bezier(.2,.8,.2,1) both;
           }
           @keyframes chatMsgFadeIn {
             from {
               opacity: 0;
-              /* лёгкое смещение вниз и чуть уменьшенный scale для более мягкого эффекта */
               transform: translateY(6px) scale(0.995);
             }
             to {
@@ -1002,7 +1024,6 @@ const ChatWithFriend: React.FC = () => {
               transform: translateY(0) scale(1);
             }
           }
-          /* Action menu animation and styles */
           @keyframes actionPop {
             from { opacity: 0; transform: translateY(-6px) scale(0.98); }
             to { opacity: 1; transform: translateY(0) scale(1); }
@@ -1010,8 +1031,6 @@ const ChatWithFriend: React.FC = () => {
           .action-menu {
             animation: actionPop 0.18s cubic-bezier(.2,.9,.2,1) both;
           }
-
-  // Read/delivered feature removed — no client-side mark-read/mark-unread behavior
           .action-btn {
             display: inline-flex;
             align-items: center;
@@ -1029,110 +1048,59 @@ const ChatWithFriend: React.FC = () => {
           .action-btn.icon-only { gap: 0; padding: 6px; }
         `}</style>
       </Head>
-      <div
-        style={{
-          minHeight: '100vh',
-          background: '#111',
-          color: '#e3e8f0',
-          fontFamily: 'Segoe UI,Arial,sans-serif',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: 0,
-        }}
-      >
-  <div style={appliedChatContainerStyle}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: isMobile ? 10 : 16 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%' }}>
-                <button
-                  onClick={() => router.push('/chat')}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    padding: 0,
-                    marginRight: 6,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    color: '#bbb',
-                    fontSize: isMobile ? 28 : 22,
-                    transition: 'color 0.2s',
-                  }}
-                  title="Назад к чатам"
-                  aria-label="Назад к чатам"
-                  onMouseOver={e => (e.currentTarget.style.color = '#229ed9')}
-                  onMouseOut={e => (e.currentTarget.style.color = '#bbb')}
-                >
-                  <svg width={isMobile ? 28 : 22} height={isMobile ? 28 : 22} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M15.5 19L9.5 12L15.5 5" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </button>
-
-                {/* Center: name + status/typing */}
-                <div style={{ flex: 1, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={nameStyle}>{friend?.link ? `${friend.link}` : (friend?.name || friend?.login || <span style={{color:'#888'}}>Загрузка...</span>)}</span>
-                    {/* role icons */}
-                    {friend?.role === 'admin' && <img src="/role-icons/admin.svg" alt="admin" title="Админ" style={{ width: 16, height: 16, marginLeft: 2 }} />}
-                    {friend?.role === 'moderator' && <img src="/role-icons/moderator.svg" alt="moderator" title="Модератор" style={{ width: 16, height: 16, marginLeft: 2 }} />}
-                    {friend?.role === 'verif' && <img src="/role-icons/verif.svg" alt="verif" title="Верифицирован" style={{ width: 16, height: 16, marginLeft: 2 }} />}
-                    {friend?.role === 'pepe' && <img src="/role-icons/pepe.svg" alt="pepe" title="Пепешка" style={{ width: 16, height: 16, marginLeft: 2 }} />}
-                  </div>
-                  <div style={{ fontSize: 12, color: '#9aa0a6', marginTop: 2, minHeight: 14, lineHeight: '1' }}>
-                    {isTyping ? (
-                      <span style={{ color: '#229ed9', fontSize: 12 }}>печатает...</span>
-                    ) : (
-                      friend?.status === 'dnd' ? <span style={{ fontSize: 12, color: '#9aa0a6' }}>был(а) недавно</span> : (friend?.status === 'online' ? <span style={{ fontSize: 12, color: '#229ed9' }}>в сети</span> : <span style={{ fontSize: 12, color: '#9aa0a6' }}>не в сети</span>)
-                    )}
-                  </div>
+      <div className={styles.chatPageContainer}>
+        <div className={styles.chatPageHeader}>
+          <div className={styles.chatPageHeaderLeft}>
+            <button
+              onClick={() => router.push('/chat')}
+              className={styles.chatHeaderButton}
+              title="Назад к чатам"
+              aria-label="Назад к чатам"
+            >
+              <svg width={20} height={20} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M15.5 19L9.5 12L15.5 5" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+          </div>
+          
+          <div className={styles.chatPageHeaderInfo}>
+            <div className={styles.chatPageHeaderTitle}>
+              <img src={friend?.avatar || '/window.svg'} alt="avatar" className={styles.chatPageHeaderAvatar} />
+              <div style={{display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 3}}>
+                <div style={{display: 'flex', alignItems: 'center', gap: 6}}>
+                  {friend?.link ? `@${friend.link}` : (friend?.name || friend?.login || <span style={{color:'#888'}}>Загрузка...</span>)}
+                  {friend?.role === 'admin' && <img src="/role-icons/admin.svg" alt="admin" title="Админ" style={{ width: 14, height: 14 }} />}
+                  {friend?.role === 'moderator' && <img src="/role-icons/moderator.svg" alt="moderator" title="Модератор" style={{ width: 14, height: 14 }} />}
+                  {friend?.role === 'verif' && <img src="/role-icons/verif.svg" alt="verif" title="Верифицирован" style={{ width: 14, height: 14 }} />}
+                  {friend?.role === 'pepe' && <img src="/role-icons/pepe.svg" alt="pepe" title="Пепешка" style={{ width: 14, height: 14 }} />}
                 </div>
-
-                {/* Avatar on the right with call buttons positioned neatly */}
-                <div style={{ marginLeft: 8, display: 'flex', alignItems: 'center', gap: 8, position: 'relative' }}>
-                  {/* Buttons: absolute vertical stack to the left of avatar for desktop, row for mobile */}
-                  <div style={{ position: 'absolute', right: isMobile ? 56 : 56, top: isMobile ? 2 : -6, display: 'flex', flexDirection: 'row', gap: 0, alignItems: 'center' }}>
-                    <button
-                      aria-label="Позвонить"
-                      title="Позвонить"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (!friend || !friend.id) return;
-                        try { call.startCall({ type: 'phone', targetId: friend.id, targetName: friend.link ? `@${friend.link}` : (friend.login || friend.name), targetAvatar: friend.avatar || undefined }); } catch (err) {}
-                      }}
-                      onMouseOver={(e) => { try { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(34,158,217,0.08)'; } catch {} }}
-                      onMouseOut={(e) => { try { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; } catch {} }}
-                      style={{ width: isMobile ? 40 : 40, height: isMobile ? 40 : 40, borderRadius: 8, border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0, transition: 'background 0.12s, transform 0.06s' }}
-                    >
-                      <img src="/phonecall.svg" alt="phone" style={{ width: 18, height: 18, display: 'block' }} />
-                    </button>
-                  </div>
-
-                  <img src={friend?.avatar || '/window.svg'} alt="avatar" style={avatarStyle} />
+                <div className={styles.chatPageHeaderStatus} style={{fontSize: 11, marginLeft: 0}}>
+                  {isTyping ? (
+                    <span style={{ color: '#64b5f6' }}>печатает...</span>
+                  ) : (
+                    friend?.status === 'dnd' ? 'был(а) недавно' : (friend?.status === 'online' ? 'в сети' : 'не в сети')
+                  )}
                 </div>
               </div>
             </div>
-        <div
-            className="chat-messages-scroll"
-            style={{
-              flex: 1,
-              borderRadius: 16,
-              padding: '4px 0',
-              // apply per-chat background (local) or default global background
-              background: `linear-gradient(rgba(30,32,42,0.55),rgba(30,32,42,0.75)), url('${chatBgUrl || DEFAULT_CHAT_BG}') center/cover no-repeat`,
-              marginBottom: isMobile ? 10 : 12,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: isMobile ? 8 : 6,
-              minHeight: 0,
-              maxHeight: showVideoPreview
-                ? (isMobile ? 'calc(100vh - 1px)' : '48vh')
-                : (isMobile ? 'calc(100vh - 180px)' : '32vh'),
-              overflowY: showVideoPreview ? 'hidden' : 'auto',
-              overflowX: 'hidden', // <-- добавлено, чтобы убрать горизонтальный скролл
-              boxShadow: '0 2px 16px #0002',
-            }}
-            ref={chatScrollRef}
-        >
+          </div>
+
+          <div className={styles.chatPageHeaderRight}>
+            <button
+              aria-label="Позвонить"
+              title="Позвонить"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!friend || !friend.id) return;
+                try { call.startCall({ type: 'phone', targetId: friend.id, targetName: friend.link ? `@${friend.link}` : (friend.login || friend.name), targetAvatar: friend.avatar || undefined }); } catch (err) {}
+              }}
+              className={styles.chatHeaderButton}
+            >
+              <img src="/phonecall.svg" alt="phone" style={{ width: 18, height: 18, display: 'block' }} />
+            </button>
+          </div>
+        </div>
+        <div className={styles.messagesContainer} ref={chatScrollRef}>
           {messages.length === 0 ? (
             <div style={{ color: '#bbb', fontSize: 16, textAlign: 'center', marginTop: 32 }}><i>Нет сообщений</i></div>
           ) : (
@@ -1196,19 +1164,20 @@ const ChatWithFriend: React.FC = () => {
                       <div
                         key={msg._key || msg.id}
                         ref={getMsgRef}
-                        className={animatedMsgIds.has(msg.id) ? 'chat-msg-appear' : ''}
-                        style={{
-                          marginBottom: 0,
-                          display: 'flex',
-                          flexDirection: 'row',
-                          justifyContent: isOwn ? 'flex-end' : 'flex-start',
-                          width: '100%',
-                          position: 'relative',
-                          alignItems: 'center',
-                        }}
+                        className={`${styles.messageBubble} ${isOwn ? styles.messageBubbleOwn : styles.messageBubbleOther} ${animatedMsgIds.has(msg.id) ? 'chat-msg-appear' : ''}`}
                         onMouseEnter={() => setHoveredMsgId(msg.id)}
                         onMouseLeave={() => setHoveredMsgId(null)}
                       >
+                        {/* Avatar на левой стороне для других сообщений */}
+                        {!isOwn && (
+                          <img
+                            src={friend?.avatar || friend?.image || '/default-avatar.png'}
+                            alt={friend?.login || 'User'}
+                            className={styles.messageAvatar}
+                            style={{ display: 'block' }}
+                          />
+                        )}
+
                         {/* Оборачиваем контент сообщения в контейнер с поддержкой клика (ПК) и долгого нажатия (моб)
                             Меню действий появляется для собственных сообщений (Copy / Delete). */}
                         <div
@@ -1267,32 +1236,14 @@ const ChatWithFriend: React.FC = () => {
                             ) : msg.audioUrl ? (
                               <VoiceMessage audioUrl={msg.audioUrl} isOwn={isOwn} />
                             ) : (
-                                <span
-                                data-msg-id={msg.id}
-                                style={isOwn
-                                  ? {
-                                      ...messageStyle,
-                                      display: 'inline-block',
-                                      background: messageColor || 'var(--chat-accent, #229ed9)',
-                                      color: '#fff',
-                                      borderRadius: '16px',
-                                      minWidth: 48,
-                                      wordBreak: 'break-word',
-                                      padding: '7px 14px',
-                                      fontSize: '15px',
-                                      boxShadow: '0 2px 6px #2222',
-                                    }
-                                  : { ...messageStyle, background: '#222', display: 'inline-block', wordBreak: 'break-word', borderRadius: '16px', fontSize: '15px', padding: '7px 14px' }}
-                              >
-                                <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                                  <span style={{}}>{msg.text}</span>
-                                  {isOwn && (
-                                    <>
-                                      <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.85)', marginLeft: 4, marginRight: 2, minWidth: 32, textAlign: 'right', letterSpacing: 0 }}>{new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                                    </>
-                                  )}
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: isOwn ? 'flex-end' : 'flex-start' }}>
+                                <div className={isOwn ? styles.messageTextOwn : styles.messageTextOther}>
+                                  <span>{msg.text}</span>
+                                </div>
+                                <span className={styles.messageTime}>
+                                  {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                 </span>
-                              </span>
+                              </div>
                             )}
 
                             {/* Action menu: только для собственных сообщений */}
@@ -1352,6 +1303,15 @@ const ChatWithFriend: React.FC = () => {
                           </div>
                         </div>
 
+                        {/* Avatar на правой стороне для собственных сообщений */}
+                        {isOwn && session?.user && (
+                          <img
+                            src={session.user.avatar || session.user.image || '/default-avatar.png'}
+                            alt={session.user.name || 'You'}
+                            className={styles.messageAvatar}
+                            style={{ display: 'block' }}
+                          />
+                        )}
                       </div>
                     );
                   })}
@@ -1363,38 +1323,17 @@ const ChatWithFriend: React.FC = () => {
         </div>
         <form
           onSubmit={handleSendMessage}
-          style={{
-            display: 'flex',
-            gap: 8,
-            marginTop: 0,
-            paddingBottom: isMobile ? 8 : 0,
-            alignItems: 'center',
-          }}
+          className={styles.inputArea}
         >
           {/* Кнопка скрепки слева */}
           <button
             type="button"
-            style={{
-              width: isMobile ? 44 : 36,
-              height: isMobile ? 44 : 36,
-              borderRadius: '50%',
-              padding: 0,
-              background: 'transparent',
-              border: 'none',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginRight: 8,
-              cursor: 'pointer',
-              boxShadow: 'none',
-              color: '#bbb',
-            }}
+            className={styles.inputButton}
             title="Отправить фото или файл"
             aria-label="Отправить фото или файл"
             onClick={() => document.getElementById('file-input')?.click()}
           >
-            {/* User-provided file icon */}
-            <img src="/file.svg" alt="Файл" style={{ display: 'block', width: isMobile ? 22 : 18, height: isMobile ? 22 : 18 }} />
+            <img src="/file.svg" alt="Файл" style={{ display: 'block', width: 18, height: 18 }} />
           </button>
           {/* Центрированный кружок поверх чата с затемнением */}
           {showVideoPreview && (
@@ -1739,8 +1678,6 @@ const ChatWithFriend: React.FC = () => {
           </div>
         )}
   {/* (удалено дублирующееся отображение индикатора записи) */}
-      </div>
-      {/* (модалка удалена, только inline превью) */}
       </div>
     </>
   );
