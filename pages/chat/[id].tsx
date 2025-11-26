@@ -1171,7 +1171,7 @@ const ChatWithFriend: React.FC = () => {
                         {/* Avatar на левой стороне для других сообщений */}
                         {!isOwn && (
                           <img
-                            src={friend?.avatar || friend?.image || '/default-avatar.png'}
+                            src={friend?.avatar || '/default-avatar.png'}
                             alt={friend?.login || 'User'}
                             className={styles.messageAvatar}
                             style={{ display: 'block' }}
