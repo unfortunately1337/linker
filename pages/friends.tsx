@@ -119,8 +119,8 @@ export default function FriendsPage() {
   useEffect(() => {
     const updateFriendsList = () => {
       // Принуждаем переренdered при изменении имён
-      setFriends(prev => [...prev]);
-      setSearchResult(prev => prev ? [...prev] : null);
+      setFriends((prev: any) => [...prev]);
+      setSearchResult((prev: any) => prev ? [...prev] : null);
     };
     
     window.addEventListener('friend-name-changed', updateFriendsList as EventListener);

@@ -56,8 +56,7 @@ export const authOptions = {
         
         // Extract device info and IP
         let deviceName = req.headers?.['user-agent'] || 'Unknown Device';
-        let ip: string | undefined = (req.headers?.['x-forwarded-for'] as string) || 
-                                      (req.socket?.remoteAddress);
+        let ip: string | undefined = (req.headers?.['x-forwarded-for'] as string);
         
         // Create a new session in PostgreSQL
         const newSession = await createSession(user.id, deviceName, ip);

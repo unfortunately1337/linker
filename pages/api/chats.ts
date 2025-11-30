@@ -21,7 +21,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method === 'POST') {
     const { name, userIds } = req.body;
     // Название может быть null для 1:1 чатов
-    if (name !== null && name !== undefined && (!typeof name === 'string' || !name.trim())) {
+    if (name !== null && name !== undefined && (typeof name !== 'string' || !name.trim())) {
       return res.status(400).json({ error: 'Название должно быть строкой или null' });
     }
     // Гарантируем, что текущий пользователь всегда в группе
