@@ -409,6 +409,82 @@ const ChatWithFriend: React.FC = () => {
     }
   };
 
+  const cancelVideo = () => {
+    setShowVideoPreview(false);
+    setVideoBlob(null);
+    setVideoChunks([]);
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+      videoRef.current.src = '';
+    }
+    if (videoStream) {
+      videoStream.getTracks().forEach((track: MediaStreamTrack) => track.stop());
+    }
+    setVideoStream(null);
+    setVideoRecorder(null);
+  };
+
+  const sendVideoMessage = async () => {
+    if (!videoBlob || !chatId || !session) return;
+
+    try {
+      let thumbnailBlob: Blob | null = null;
+      try {
+        thumbnailBlob = await createVideoThumbnail(videoBlob, 160);
+      } catch (e) {
+        thumbnailBlob = null;
+      }
+
+      const tempId = 'temp-video-' + Date.now();
+      const tempMsg: Message = {
+        id: tempId,
+        sender: (session?.user as any)?.id || '',
+        text: '',
+        createdAt: new Date().toISOString(),
+        audioUrl: undefined,
+        videoUrl: undefined,
+        thumbnailUrl: thumbnailBlob ? URL.createObjectURL(thumbnailBlob) : undefined,
+        _key: tempId,
+        _persisted: false,
+        _failed: false,
+      };
+      setMessages(prev => [...prev, tempMsg]);
+
+      const formData = new FormData();
+      formData.append('chatId', chatId);
+      formData.append('video', videoBlob, 'circle.webm');
+      if (thumbnailBlob) formData.append('thumbnail', thumbnailBlob, 'thumb.jpg');
+
+      const res = await fetch('/api/messages/video-upload', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const txt = await res.text();
+        setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _failed: true } : m));
+        alert('Ошибка отправки видео: ' + txt);
+      } else {
+        const data = await res.json();
+        if (data.videoUrl && data.message && data.message.id) {
+          setMessages(prev => prev.map(m => m.id === tempId ? {
+            ...m,
+            id: data.message.id,
+            createdAt: data.message.createdAt || m.createdAt,
+            videoUrl: data.videoUrl,
+            thumbnailUrl: data.thumbnailUrl || m.thumbnailUrl,
+            _persisted: data.persisted !== false,
+          } : m));
+        }
+      }
+    } catch (err) {
+      alert('Ошибка отправки видео: ' + err);
+    } finally {
+      cancelVideo();
+    }
+  };
+
   // NOTE: single Pusher subscription is handled below (avoid double subscriptions)
 
   // Отправка события "печатает"
@@ -459,77 +535,8 @@ const ChatWithFriend: React.FC = () => {
             if (videoTimer.current) clearInterval(videoTimer.current);
             setVideoRecording(false);
             setVideoTime(0);
-            // (Проверка минимальной длительности видео отключена)
             const blob = new Blob(chunks, { type: mimeType || 'video/webm' });
-            // Create a small thumbnail to speed up initial rendering
-            let thumbnailBlob: Blob | null = null;
-            try {
-              thumbnailBlob = await createVideoThumbnail(blob, 160);
-            } catch (e) {
-              // fall back silently
-              thumbnailBlob = null;
-            }
-            // Optimistic UI: show temp message while uploading
-            const tempId = 'temp-video-' + Date.now();
-            const tempMsg: Message = {
-              id: tempId,
-              sender: (session?.user as any)?.id || '',
-              text: '',
-              createdAt: new Date().toISOString(),
-              audioUrl: undefined,
-              videoUrl: undefined,
-              thumbnailUrl: thumbnailBlob ? URL.createObjectURL(thumbnailBlob) : undefined,
-              _key: tempId,
-              _persisted: false,
-              _failed: false,
-            };
-            setMessages(prev => [...prev, tempMsg]);
-            // Сразу отправляем кружок вместе с миниатюрой
-            if (chatId && session) {
-              const formData = new FormData();
-              formData.append('chatId', chatId);
-              formData.append('video', blob, 'circle.webm');
-              if (thumbnailBlob) formData.append('thumbnail', thumbnailBlob, 'thumb.jpg');
-              try {
-                const res = await fetch('/api/messages/video-upload', {
-                  method: 'POST',
-                  credentials: 'include',
-                  body: formData,
-                });
-                if (!res.ok) {
-                  const txt = await res.text();
-                  setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _failed: true } : m));
-                  alert('Ошибка отправки видео: ' + txt);
-                } else {
-                  const data = await res.json();
-                  if (data.videoUrl && data.message && data.message.id) {
-                    // replace temp message
-                    setMessages(prev => prev.map(m => m.id === tempId ? {
-                      ...m,
-                      id: data.message.id,
-                      createdAt: data.message.createdAt || m.createdAt,
-                      videoUrl: data.videoUrl,
-                      thumbnailUrl: data.thumbnailUrl || m.thumbnailUrl,
-                      _persisted: data.persisted !== false,
-                    } : m));
-                  }
-                }
-              } catch (err) {
-                setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _failed: true } : m));
-                alert('Ошибка отправки видео: ' + err);
-              }
-            }
-            setShowVideoPreview(false);
-            setVideoBlob(null);
-            setVideoChunks([]);
-            if (videoRef.current) {
-              videoRef.current.srcObject = null;
-              videoRef.current.src = '';
-            }
-            if (stream) {
-              stream.getTracks().forEach((track: MediaStreamTrack) => track.stop());
-            }
-            setVideoStream(null);
+            setVideoBlob(blob);
           };
           recorder.start();
         } catch (err) {
@@ -558,35 +565,6 @@ const ChatWithFriend: React.FC = () => {
       // ignore parse errors
     }
   }, []);
-  // Отправить видео (реализовать позже)
-  const sendVideo = () => {
-    // TODO: реализовать отправку видео
-    setShowVideoPreview(false);
-    setVideoBlob(null);
-    setVideoChunks([]);
-    setVideoTime(0);
-    if (videoStream) {
-      videoStream.getTracks().forEach(track => track.stop());
-      setVideoStream(null);
-    }
-  };
-  // Отмена кружка
-  const cancelVideo = () => {
-    setShowVideoPreview(false);
-    setVideoBlob(null);
-    setVideoChunks([]);
-    setVideoTime(0);
-    setVideoRecording(false);
-    if (videoStream) {
-      videoStream.getTracks().forEach(track => track.stop());
-      setVideoStream(null);
-    }
-    if (videoRecorder) {
-      videoRecorder.ondataavailable = null;
-      videoRecorder.onstop = null;
-      setVideoRecorder(null);
-    }
-  };
 
   useEffect(() => {
     if (!session || !id || Array.isArray(id)) return;
@@ -1395,22 +1373,22 @@ const ChatWithFriend: React.FC = () => {
             <div style={{
               position: 'fixed', left: 0, top: 0, width: '100vw', height: '100vh', zIndex: 2000,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'rgba(20,22,30,0.85)',
               animation: 'fadeInOverlay 0.25s',
             }}>
               <style>{`
                 @keyframes fadeInOverlay { from { opacity: 0; } to { opacity: 1; } }
                 @keyframes popInCircle { from { transform: scale(0.7); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+                @keyframes pulse {
+                  0% { box-shadow: 0 0 8px #ef4444aa, 0 0 12px #ef4444aa; }
+                  50% { box-shadow: 0 0 12px #ef4444, 0 0 20px #ef4444; }
+                  100% { box-shadow: 0 0 8px #ef4444aa, 0 0 12px #ef4444aa; }
+                }
                 .circle-anim { animation: popInCircle 0.32s cubic-bezier(.23,1.02,.36,1) both; }
               `}</style>
-              {/* Затемнение */}
-              <div style={{
-                position: 'absolute', left: 0, top: 0, width: '100vw', height: '100vh',
-                background: 'rgba(20,22,30,0.55)', zIndex: 0,
-                animation: 'fadeInOverlay 0.25s',
-              }} onClick={cancelVideo} />
               {/* Кружок и кнопки */}
               <div style={{
-                position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
+                position: 'relative', zIndex: 2001, display: 'flex', flexDirection: 'column', alignItems: 'center',
               }}>
                 <video
                   ref={videoRef}
@@ -1418,18 +1396,95 @@ const ChatWithFriend: React.FC = () => {
                   muted
                   playsInline
                   className="circle-anim"
-                  style={{ width: 220, height: 220, borderRadius: '50%', background: '#111', objectFit: 'cover', border: '4px solid ' + (messageColor || '#229ed9'), boxShadow: '0 4px 32px #000a' }}
+                  style={{
+                    width: 240,
+                    height: 240,
+                    borderRadius: '50%',
+                    background: '#111',
+                    objectFit: 'cover',
+                    border: '3px solid #64b5f6',
+                    boxShadow: '0 0 24px rgba(100, 181, 246, 0.3), 0 8px 32px rgba(0, 0, 0, 0.4)',
+                    transition: 'transform 0.35s ease',
+                  }}
                 />
-                <div style={{ color: '#fff', fontWeight: 600, fontSize: 18, textAlign: 'center', marginTop: 18, marginBottom: 10 }}>
-                  {videoRecording ? ` ${videoTime}s` : 'Готово'}
-                </div>
-                <div style={{ display: 'flex', gap: 22, justifyContent: 'center', marginTop: 2 }}>
-                  {videoRecording && (
-                    <button onClick={stopVideoRecording} className="circle-btn-anim primary" title="Остановить запись">
-                      ■
+                <div style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: 16, 
+                  marginTop: 32,
+                  background: 'rgba(20, 20, 24, 0.95)',
+                  border: '1px solid rgba(255,255,255,0.06)',
+                  borderRadius: 24,
+                  padding: '10px 20px',
+                  backdropFilter: 'blur(8px)',
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+                }}>
+                  {videoRecording ? (
+                    <>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444', boxShadow: '0 0 8px #ef4444aa', animation: 'pulse 1.5s infinite' }} />
+                        <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 700, color: '#f0f3f8', fontSize: 13, minWidth: '32px' }}>
+                          {String(Math.floor(videoTime / 60)).padStart(2, '0')}:{String(videoTime % 60).padStart(2, '0')}
+                        </span>
+                      </div>
+                      <button onClick={stopVideoRecording} style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#64b5f6',
+                        cursor: 'pointer',
+                        padding: '6px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        transition: 'all 0.2s',
+                      }} title="Остановить запись" aria-label="Остановить запись"
+                        onMouseEnter={(e) => {e.currentTarget.style.color = '#64b5f6'; e.currentTarget.style.transform = 'scale(1.1)'}}
+                        onMouseLeave={(e) => {e.currentTarget.style.color = '#64b5f6'; e.currentTarget.style.transform = 'scale(1)'}}
+                      >
+                        <svg width={20} height={20} viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M16.6915026,12.4744748 L3.50612381,13.2599618 C3.19218622,13.2599618 3.03521743,13.4170592 3.03521743,13.5741566 L1.15159189,20.0151496 C0.8376543,20.8006365 0.99,21.89 1.77946707,22.52 C2.41,22.99 3.50612381,23.1 4.13399899,22.8429026 L21.714504,14.0454487 C22.6563168,13.5741566 23.1272231,12.6315722 22.9702544,11.6889879 L4.13399899,1.16346272 C3.34915502,0.9 2.40734225,0.9 1.77946707,1.4705957 C0.994623095,2.0411913 0.837654326,3.1302744 1.15159189,3.9157613 L3.03521743,10.3567542 C3.03521743,10.5138516 3.19218622,10.671149 3.50612381,10.671149 L16.6915026,11.4566365 C16.6915026,11.4566365 17.1624089,11.4566365 17.1624089,12.0272321 C17.1624089,12.5978278 16.6915026,12.4744748 16.6915026,12.4744748 Z" />
+                        </svg>
+                      </button>
+                    </>
+                  ) : null}
+                  {!videoRecording && (
+                    <button onClick={sendVideoMessage} style={{
+                      background: '#64b5f6',
+                      border: 'none',
+                      color: '#fff',
+                      cursor: 'pointer',
+                      padding: '6px 12px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderRadius: 8,
+                      transition: 'all 0.2s',
+                      fontWeight: 600,
+                      fontSize: 12,
+                    }} title="Отправить видео" aria-label="Отправить видео"
+                      onMouseEnter={(e) => {e.currentTarget.style.background = '#5aa3d4'; e.currentTarget.style.transform = 'scale(1.05)'}}
+                      onMouseLeave={(e) => {e.currentTarget.style.background = '#64b5f6'; e.currentTarget.style.transform = 'scale(1)'}}
+                    >
+                      Отправить
                     </button>
                   )}
-                  <button onClick={cancelVideo} className="circle-btn-anim danger circle-btn-cancel" title="Отмена">
+                  <button onClick={cancelVideo} style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#a8b5c4',
+                    cursor: 'pointer',
+                    padding: '6px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'color 0.2s',
+                    fontSize: 16,
+                    fontWeight: 600,
+                    marginLeft: 'auto',
+                  }} title="Отмена" aria-label="Отмена"
+                    onMouseEnter={(e) => e.currentTarget.style.color = '#d0d8e0'}
+                    onMouseLeave={(e) => e.currentTarget.style.color = '#a8b5c4'}
+                  >
                     ×
                   </button>
                 </div>

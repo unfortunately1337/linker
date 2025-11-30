@@ -7,8 +7,7 @@
     "build": "next build",
     "export": "next export",
     "start": "next start",
-    "postinstall": "prisma generate",
-    "migrate-sessions-to-redis": "ts-node scripts/migrate-sessions-to-redis.ts"
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.916.0",
@@ -16,7 +15,6 @@
     "bcryptjs": "3.0.2",
     "formidable": "^3.5.4",
     "framer-motion": "12.23.22",
-    "ioredis": "^5.3.2",
     "jsonwebtoken": "9.0.2",
     "lottie-react": "^2.4.1",
     "lottie-web": "^5.13.0",

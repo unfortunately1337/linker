@@ -20,9 +20,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (req.method === 'POST') {
     const { name, userIds } = req.body;
-    // Гарантируем, что название группы обязательно
-    if (!name || typeof name !== 'string' || !name.trim()) {
-      return res.status(400).json({ error: 'Название группы обязательно' });
+    // Название может быть null для 1:1 чатов
+    if (name !== null && name !== undefined && (!typeof name === 'string' || !name.trim())) {
+      return res.status(400).json({ error: 'Название должно быть строкой или null' });
     }
     // Гарантируем, что текущий пользователь всегда в группе
     let allUserIds = Array.isArray(userIds) ? [...userIds] : [];
@@ -35,11 +35,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Создать чат и добавить пользователей
     const chat = await prisma.chat.create({
       data: {
-        name: name,
+        name: name || null, // null for 1:1 chats
         users: {
           connect: allUserIds.map((id: string) => ({ id }))
         }
-      }
+      },
+      include: { users: true }
     });
     return res.status(200).json({ chat });
   }
@@ -52,10 +53,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           // Ищем личный чат между двумя пользователями
           let chat = await prisma.chat.findFirst({
             where: {
-              users: {
-                every: { id: { in: ids } },
-                some: { id: { in: ids } }
-              },
+              AND: [
+                { name: null }, // Only 1:1 chats (without name)
+                { users: { every: { id: { in: ids } } } }
+              ]
             },
             include: { users: true }
           });
@@ -63,17 +64,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           if (chat && chat.users.length !== 2) {
             chat = null;
           }
-          if (!chat) {
-            chat = await prisma.chat.create({
-              data: {
-                users: {
-                  connect: ids.map(id => ({ id }))
-                }
-              },
-              include: { users: true }
-            });
-          }
-          return res.status(200).json({ chat });
+          // Return what we found (or null if nothing) - don't auto-create
+          return res.status(200).json({ chat: chat || null });
       }
     }
     // Получить все чаты пользователя

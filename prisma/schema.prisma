@@ -22,8 +22,10 @@ model Session {
   id         String   @id @default(uuid())
   userId     String
   deviceName String
+  ip         String?
   isActive   Boolean  @default(true)
   createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
   user       User     @relation("UserSessions", fields: [userId], references: [id], onDelete: Cascade)
 }
 
@@ -87,6 +89,7 @@ model Message {
   audioMime   String?   // new
   videoBase64 String?   // new
   videoMime   String?   // new
+  status    String   @default("sent") // sent (1 grey checkmark), read (2 blue checkmarks)
   chat      Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
   sender    User     @relation("UserSentMessages", fields: [senderId], references: [id], onDelete: Cascade)
 }

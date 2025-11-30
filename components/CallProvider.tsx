@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { getPusherClient } from '../lib/pusher';
+import { getFriendDisplayName } from '../lib/hooks';
 
 type CallType = 'phone' | 'video';
 type CallState = {
@@ -42,8 +43,11 @@ function CallWindow({ call, onAccept, onEnd, onMinimize, muted, onToggleMute }: 
   const isOutgoing = call.status === 'calling';
   const isIncoming = call.status === 'ringing';
   const isActive = call.status === 'in-call';
+  const isEnded = call.status === 'ended';
 
   const [elapsed, setElapsed] = React.useState<string>('00:00');
+  const [signalingTime, setSignalingTime] = React.useState<string>('00:00');
+  
   React.useEffect(() => {
     let t: any = null;
     const update = () => {
@@ -63,71 +67,184 @@ function CallWindow({ call, onAccept, onEnd, onMinimize, muted, onToggleMute }: 
     return () => { if (t) clearInterval(t); };
   }, [call.startedAt, isActive]);
 
+  // Timer for calling/ringing states
+  React.useEffect(() => {
+    let t: any = null;
+    const update = () => {
+      const start = call.startedAt || Date.now();
+      const diff = Math.max(0, Date.now() - start);
+      const s = Math.floor(diff / 1000);
+      const mm = String(Math.floor(s / 60)).padStart(2, '0');
+      const ss = String(s % 60).padStart(2, '0');
+      setSignalingTime(`${mm}:${ss}`);
+    };
+    if (isOutgoing || isIncoming) {
+      update();
+      t = setInterval(update, 1000);
+    } else {
+      setSignalingTime('00:00');
+    }
+    return () => { if (t) clearInterval(t); };
+  }, [call.startedAt, isOutgoing, isIncoming]);
+
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'auto' }}>
-      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)' }} />
-      <div style={{ position: 'relative', width: 360, maxWidth: '92vw', background: '#111318', borderRadius: 14, padding: 18, boxShadow: '0 10px 40px rgba(0,0,0,0.6)', color: '#fff', zIndex: 2010 }}>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          <img src={call.targetAvatar || '/window.svg'} alt="avatar" style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover', background: '#333' }} />
-          <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 700, fontSize: 18 }}>{call.targetName || 'Звонок'}</div>
-            <div style={{ color: '#9aa0a6', marginTop: 6 }}>
-              {call.status === 'ended' ? (call.endedReason === 'declined' ? 'Звонок отклонён' : (call.startedAt ? 'Звонок завершён' : 'Звонок завершён')) : (isOutgoing ? 'Звонок...' : isIncoming ? 'Входящий звонок' : isActive ? 'В разговоре' : '')}
+    <div style={{ position: 'fixed', inset: 0, zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'auto', background: 'linear-gradient(135deg,rgba(15,17,19,0.95),rgba(10,12,15,0.98))' }}>
+      <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 30% 50%, rgba(33,150,243,0.05), transparent 50%), radial-gradient(circle at 70% 50%, rgba(244,67,54,0.03), transparent 50%)' }} />
+      
+      {isEnded ? (
+        // Full-screen ended panel
+        <div style={{ position: 'relative', width: '100%', maxWidth: '100vw', height: '100vh', zIndex: 2010, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          {/* Animated background circles */}
+          <div style={{ position: 'absolute', width: 300, height: 300, borderRadius: '50%', background: call.endedReason === 'declined' ? 'radial-gradient(circle, rgba(239,68,68,0.1), transparent)' : 'radial-gradient(circle, rgba(34,197,94,0.1), transparent)', top: '20%', left: '15%', animation: 'float 6s ease-in-out infinite' }} />
+          <div style={{ position: 'absolute', width: 250, height: 250, borderRadius: '50%', background: 'radial-gradient(circle, rgba(33,150,243,0.08), transparent)', bottom: '15%', right: '10%', animation: 'float 8s ease-in-out infinite' }} />
+
+          {/* Main content */}
+          <div style={{ position: 'relative', zIndex: 2011, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            {/* Status icon with animation */}
+            <div style={{ marginBottom: 32, animation: 'scaleIn 0.5s cubic-bezier(0.4, 0, 0.2, 1)' }}>
+              <div style={{ width: 140, height: 140, borderRadius: '50%', background: call.endedReason === 'declined' ? 'linear-gradient(135deg, rgba(239,68,68,0.2), rgba(220,38,38,0.2))' : 'linear-gradient(135deg, rgba(34,197,94,0.2), rgba(22,163,74,0.2))', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `3px solid ${call.endedReason === 'declined' ? 'rgba(239,68,68,0.4)' : 'rgba(34,197,94,0.4)'}`, boxShadow: `0 0 40px ${call.endedReason === 'declined' ? 'rgba(239,68,68,0.15)' : 'rgba(34,197,94,0.15)'}` }}>
+                <svg width="70" height="70" viewBox="0 0 24 24" fill="none" stroke={call.endedReason === 'declined' ? '#ef4444' : '#22c55e'} strokeWidth="2">
+                  {call.endedReason === 'declined' ? (
+                    <path d="M18 6L6 18M6 6l12 12" />
+                  ) : (
+                    <path d="M20 6L9 17l-5-5" />
+                  )}
+                </svg>
+              </div>
             </div>
+
+            {/* Status text */}
+            <div style={{ color: '#fff', fontWeight: 700, fontSize: 32, marginBottom: 12, letterSpacing: '-0.5px' }}>
+              {call.endedReason === 'declined' ? 'Звонок отклонён' : 'Разговор завершён'}
+            </div>
+
+            {/* Call duration */}
+            <div style={{ color: '#a0aec0', fontSize: 18, fontWeight: 500, marginBottom: 32 }}>
+              {call.startedAt && call.endedAt ? (() => {
+                const ms = Math.max(0, (call.endedAt || Date.now()) - (call.startedAt || Date.now()));
+                const s = Math.floor(ms / 1000);
+                const mm = String(Math.floor(s / 60)).padStart(2, '0');
+                const ss = String(s % 60).padStart(2, '0');
+                return call.endedReason === 'declined' ? 'Вы отклонили звонок' : `Разговор длился ${mm}:${ss}`;
+              })() : (call.endedReason === 'declined' ? 'Вы отклонили звонок' : 'Звонок завершён')}
+            </div>
+
+            {/* Person info */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, marginBottom: 48 }}>
+              <img src={call.targetAvatar || '/window.svg'} alt="avatar" style={{ width: 100, height: 100, borderRadius: '50%', objectFit: 'cover', background: '#1a1c1f', border: '2px solid rgba(255,255,255,0.1)' }} />
+              <div style={{ fontWeight: 600, fontSize: 20, color: '#fff' }}>{call.targetName || 'Неизвестный'}</div>
+            </div>
+
+            {/* Close button */}
+            <button onClick={onEnd} title="Закрыть" style={{ padding: '14px 32px', borderRadius: 999, background: 'linear-gradient(135deg, rgba(33,150,243,0.2), rgba(33,150,243,0.1))', color: '#81d4fa', border: '1px solid rgba(33,150,243,0.3)', cursor: 'pointer', fontSize: 16, fontWeight: 600, transition: 'all 0.2s', boxShadow: '0 8px 24px rgba(0,0,0,0.3)' }} onMouseEnter={e => { e.currentTarget.style.background = 'linear-gradient(135deg, rgba(33,150,243,0.3), rgba(33,150,243,0.15))'; e.currentTarget.style.boxShadow = '0 10px 28px rgba(33,150,243,0.1)'; }} onMouseLeave={e => { e.currentTarget.style.background = 'linear-gradient(135deg, rgba(33,150,243,0.2), rgba(33,150,243,0.1))'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.3)'; }}>
+              Закрыть
+            </button>
           </div>
         </div>
-        {call.status === 'ended' ? (
-          // ended/declined panel
-          <div style={{ marginTop: 18, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 84, height: 84, borderRadius: 84, background: call.endedReason === 'declined' ? 'linear-gradient(135deg,#ff7b7b,#e64545)' : 'linear-gradient(135deg,#666,#444)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <img src="/phone-end.svg.svg" alt="ended" style={{ width: 28, height: 28, transform: call.endedReason === 'declined' ? 'rotate(0deg)' : 'rotate(0deg)' }} />
+      ) : (
+        // Active call or incoming/outgoing
+        <div style={{ position: 'relative', width: 380, maxWidth: '95vw', background: 'linear-gradient(135deg, rgba(20,21,25,0.9), rgba(15,17,19,0.95))', borderRadius: 28, padding: 28, boxShadow: '0 20px 60px rgba(0,0,0,0.8), inset 0 1px 1px rgba(255,255,255,0.05)', color: '#fff', zIndex: 2010, border: '1px solid rgba(255,255,255,0.03)' }}>
+          {/* Avatar section with gradient */}
+          <div style={{ textAlign: 'center', marginBottom: 28 }}>
+            <div style={{ position: 'relative', display: 'inline-block', marginBottom: 16 }}>
+              <div style={{ width: 120, height: 120, borderRadius: '50%', background: 'linear-gradient(135deg, rgba(33,150,243,0.2), rgba(156,39,176,0.2))', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid rgba(33,150,243,0.3)' }}>
+                <img src={call.targetAvatar || '/window.svg'} alt="avatar" style={{ width: 116, height: 116, borderRadius: '50%', objectFit: 'cover', background: '#1a1c1f' }} />
+              </div>
+              {isActive && (
+                <div style={{ position: 'absolute', bottom: 0, right: 0, width: 28, height: 28, borderRadius: '50%', background: '#22c55e', border: '3px solid rgba(20,21,25,0.95)', animation: 'pulse 2s ease-in-out infinite' }} />
+              )}
             </div>
-            <div style={{ color: '#fff', fontWeight: 700, fontSize: 16 }}>{call.endedReason === 'declined' ? 'Звонок отклонён' : (call.startedAt && call.endedAt ? (() => {
-              const ms = Math.max(0, (call.endedAt || Date.now()) - (call.startedAt || Date.now()));
-              const s = Math.floor(ms / 1000);
-              const mm = String(Math.floor(s / 60)).padStart(2, '0');
-              const ss = String(s % 60).padStart(2, '0');
-              return `Звонок продлился ${mm}:${ss}`;
-            })() : 'Звонок завершён')}</div>
+            <div style={{ fontWeight: 700, fontSize: 24, marginBottom: 8, letterSpacing: '-0.5px' }}>{call.targetName || 'Звонок'}</div>
+            <div style={{ color: '#a0aec0', fontSize: 15, fontWeight: 500, letterSpacing: '0.3px' }}>
+              {isOutgoing ? 'Идёт набор номера...' : isIncoming ? 'Входящий звонок' : isActive ? 'В разговоре' : ''}
+            </div>
           </div>
-        ) : null}
-        <div style={{ display: 'flex', gap: 14, marginTop: 18, justifyContent: 'center', alignItems: 'center' }}>
-          {/* show elapsed timer when in-call */}
+
+          {/* Timer - only show when in-call and white */}
           {isActive && (
-            <div style={{ color: '#cfeefc', fontWeight: 700, fontSize: 16, marginRight: 8 }}>{elapsed}</div>
+            <div style={{ textAlign: 'center', marginBottom: 24 }}>
+              <div style={{ fontSize: 32, fontWeight: 800, color: '#fff', letterSpacing: '-1px', fontVariantNumeric: 'tabular-nums' }}>{elapsed}</div>
+            </div>
           )}
 
-          {/* Incoming: show accept + decline */}
-          {isIncoming ? (
-            <>
-              <button onClick={onAccept} title="Принять" style={{ width: 56, height: 56, borderRadius: 56, border: 'none', background: 'linear-gradient(135deg,#1ed760,#18b54a)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 10px 30px rgba(24,160,80,0.16)' }}>
-                <img src="/phone-accept.svg.svg" alt="accept" style={{ width: 22, height: 22 }} />
-              </button>
-              <button onClick={onEnd} title="Отклонить" style={{ width: 56, height: 56, borderRadius: 56, border: 'none', background: 'linear-gradient(135deg,#ff5b5b,#e64545)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 10px 30px rgba(220,60,60,0.16)' }}>
-                <img src="/phone-end.svg.svg" alt="decline" style={{ width: 20, height: 20 }} />
-              </button>
-            </>
-          ) : (
-            // normal in-call controls
-            <>
-              {/* Mute/unmute */}
-              <button onClick={onToggleMute} title={muted ? 'Включить микрофон' : 'Выключить микрофон'} style={{ width: 48, height: 48, borderRadius: 48, border: '1px solid rgba(255,255,255,0.06)', background: muted ? '#2b2b2b' : '#0f1113', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: muted ? '0 6px 18px rgba(0,0,0,0.45)' : '0 6px 18px rgba(0,0,0,0.25)' }}>
-                <img src={muted ? '/mic-off.svg.svg' : '/mic-on.svg.svg'} alt="mic" style={{ width: 20, height: 20 }} />
-              </button>
+          {/* Controls */}
+          <div style={{ display: 'flex', gap: 12, justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap' }}>
+            {/* Incoming: show accept + decline */}
+            {isIncoming ? (
+              <>
+                <button onClick={onAccept} title="Принять" style={{ width: 64, height: 64, borderRadius: '50%', border: 'none', background: 'linear-gradient(135deg, #22c55e, #16a34a)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 10px 30px rgba(34,197,94,0.25), inset 0 1px 2px rgba(255,255,255,0.1)', transition: 'all 0.2s', transform: 'scale(1)' }} onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.08)'} onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="white" stroke="white" strokeWidth="2">
+                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                  </svg>
+                </button>
+                <button onClick={onEnd} title="Отклонить" style={{ width: 64, height: 64, borderRadius: '50%', border: 'none', background: 'linear-gradient(135deg, #ef4444, #dc2626)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 10px 30px rgba(239,68,68,0.25), inset 0 1px 2px rgba(255,255,255,0.1)', transition: 'all 0.2s', transform: 'scale(1)' }} onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.08)'} onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="white" stroke="white" strokeWidth="2">
+                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" style={{ transform: 'rotate(135deg)' }} />
+                  </svg>
+                </button>
+              </>
+            ) : (
+              // normal in-call controls
+              <>
+                {/* Mute/unmute */}
+                <button onClick={onToggleMute} title={muted ? 'Включить микрофон' : 'Выключить микрофон'} style={{ width: 56, height: 56, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.08)', background: muted ? 'linear-gradient(135deg, rgba(239,68,68,0.2), rgba(220,38,38,0.15))' : 'linear-gradient(135deg, rgba(100,116,139,0.2), rgba(71,85,105,0.15))', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', transition: 'all 0.2s' }} onMouseEnter={e => e.currentTarget.style.opacity = '0.8'} onMouseLeave={e => e.currentTarget.style.opacity = '1'}>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={muted ? '#ef4444' : '#94a3b8'} strokeWidth="2">
+                    {muted ? (
+                      <>
+                        <path d="M1 9v6a7 7 0 0 0 7 7h8m0-13V3a7 7 0 0 0-7 7v6" />
+                        <line x1="1" y1="1" x2="23" y2="23" />
+                      </>
+                    ) : (
+                      <>
+                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                        <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                      </>
+                    )}
+                  </svg>
+                </button>
 
-              {/* Minimize */}
-              <button onClick={onMinimize} title="Свернуть" style={{ width: 44, height: 44, borderRadius: 12, border: '1px solid rgba(255,255,255,0.04)', background: '#0f1113', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                <img src="/tray.svg.svg" alt="minimize" style={{ width: 18, height: 18, filter: 'invert(1) brightness(1.1)' }} />
-              </button>
+                {/* Minimize */}
+                <button onClick={onMinimize} title="Свернуть" style={{ width: 56, height: 56, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.08)', background: 'linear-gradient(135deg, rgba(100,116,139,0.2), rgba(71,85,105,0.15))', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', transition: 'all 0.2s' }} onMouseEnter={e => e.currentTarget.style.opacity = '0.8'} onMouseLeave={e => e.currentTarget.style.opacity = '1'}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2">
+                    <polyline points="4 14 10 14 10 20"></polyline>
+                    <path d="M4 14L4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8"></path>
+                  </svg>
+                </button>
 
-              {/* End call */}
-              <button onClick={onEnd} title="Завершить" style={{ width: 56, height: 56, borderRadius: 56, border: 'none', background: 'linear-gradient(135deg,#ff5b5b,#e64545)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 10px 30px rgba(220,60,60,0.16)' }}>
-                <img src="/phone-end.svg.svg" alt="end" style={{ width: 20, height: 20, transform: 'rotate(0deg)' }} />
-              </button>
-            </>
-          )}
+                {/* End call */}
+                <button onClick={onEnd} title="Завершить" style={{ width: 64, height: 64, borderRadius: '50%', border: 'none', background: 'linear-gradient(135deg, #ef4444, #dc2626)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 10px 30px rgba(239,68,68,0.25), inset 0 1px 2px rgba(255,255,255,0.1)', transition: 'all 0.2s', transform: 'scale(1)' }} onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.08)'} onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="white" stroke="white" strokeWidth="2">
+                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" style={{ transform: 'rotate(135deg)' }} />
+                  </svg>
+                </button>
+              </>
+            )}
+          </div>
         </div>
-      </div>
+      )}
+
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.7; }
+        }
+        @keyframes scaleIn {
+          from { transform: scale(0.8) rotateX(45deg); opacity: 0; }
+          to { transform: scale(1) rotateX(0deg); opacity: 1; }
+        }
+        @keyframes float {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(30px); }
+        }
+        @keyframes glow {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4); }
+          50% { box-shadow: 0 0 0 8px rgba(34, 197, 94, 0); }
+        }
+        @keyframes slideUp {
+          from { transform: translateY(20px); opacity: 0; }
+          to { transform: translateY(0); opacity: 1; }
+        }
+      `}</style>
     </div>
   );
 }
@@ -409,8 +526,9 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
           // determine if we are already calling this user (simultaneous call)
           const alreadyCalling = !!(callRef.current && callRef.current.status === 'calling' && callRef.current.targetId === from);
           const initialStatus: CallState['status'] = alreadyCalling ? 'ringing' : 'ringing';
-          setCall({ id: String(Date.now()), type: 'phone', targetId: from, targetName: callerName, targetAvatar: callerAvatar, status: initialStatus, startedAt: Date.now() });
-          callRef.current = { id: String(Date.now()), type: 'phone', targetId: from, targetName: callerName, targetAvatar: callerAvatar, status: initialStatus, startedAt: Date.now() };
+          const displayName = getFriendDisplayName(from, callerName);
+          setCall({ id: String(Date.now()), type: 'phone', targetId: from, targetName: displayName, targetAvatar: callerAvatar, status: initialStatus, startedAt: Date.now() });
+          callRef.current = { id: String(Date.now()), type: 'phone', targetId: from, targetName: displayName, targetAvatar: callerAvatar, status: initialStatus, startedAt: Date.now() };
 
           // prepare pc and set remote description so acceptCall can answer
           const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
@@ -542,30 +660,30 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
       )}
       {call && minimized && call.status !== 'ended' && (
         isMobileTray ? (
-          // Mobile: slightly larger centered pill at bottom
-          <div style={{ position: 'fixed', left: '50%', bottom: 14, transform: 'translateX(-50%)', zIndex: 2100 }}>
-            <button onClick={restoreCall} title="Вернуться к звонку" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 18px', borderRadius: 999, background: 'linear-gradient(90deg,#0f1113,#14151a)', color: '#fff', border: '1px solid rgba(255,255,255,0.04)', cursor: 'pointer', boxShadow: '0 10px 30px rgba(0,0,0,0.55)' }}>
-              <img src={call.targetAvatar || '/phonecall.svg'} alt="a" style={{ width: 36, height: 36, borderRadius: '50%' }} />
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1 }}>
-                  <div style={{ fontWeight: 700, fontSize: 14 }}>{call.targetName || 'Звонок'}</div>
-                  <div style={{ color: '#9aa0a6', fontSize: 12 }}>{call.status === 'in-call' ? trayElapsed : (call.type === 'phone' ? 'Звоним...' : 'Звоним...')}</div>
+          // Mobile: compact minimized view
+          <div style={{ position: 'fixed', left: '50%', bottom: 16, transform: 'translateX(-50%)', zIndex: 2100 }}>
+            <button onClick={restoreCall} title="Вернуться к звонку" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 999, background: 'linear-gradient(135deg, rgba(33,150,243,0.15), rgba(33,150,243,0.05))', color: '#fff', border: '1px solid rgba(33,150,243,0.2)', cursor: 'pointer', boxShadow: '0 12px 32px rgba(0,0,0,0.5), inset 0 1px 1px rgba(255,255,255,0.05)', backdropFilter: 'blur(10px)', transition: 'all 0.2s' }} onMouseEnter={e => { e.currentTarget.style.background = 'linear-gradient(135deg, rgba(33,150,243,0.25), rgba(33,150,243,0.1))'; e.currentTarget.style.boxShadow = '0 14px 36px rgba(33,150,243,0.15), inset 0 1px 1px rgba(255,255,255,0.08)'; }} onMouseLeave={e => { e.currentTarget.style.background = 'linear-gradient(135deg, rgba(33,150,243,0.15), rgba(33,150,243,0.05))'; e.currentTarget.style.boxShadow = '0 12px 32px rgba(0,0,0,0.5), inset 0 1px 1px rgba(255,255,255,0.05)'; }}>
+              <div style={{ position: 'relative', width: 32, height: 32 }}>
+                <img src={call.targetAvatar || '/phonecall.svg'} alt="a" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', background: '#1a1c1f' }} />
+                <div style={{ position: 'absolute', top: -2, right: -2, width: 12, height: 12, borderRadius: '50%', background: '#22c55e', border: '2px solid rgba(0,0,0,0.6)' }} />
               </div>
-              <img src="/phonecall.svg" alt="phone" style={{ width: 20, height: 20, marginLeft: 8 }} />
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.2 }}>
+                <div style={{ fontWeight: 600, fontSize: 12 }}>{call.targetName ? call.targetName.substring(0, 10) : 'Звонок'}</div>
+                <div style={{ color: '#81d4fa', fontSize: 11, fontWeight: 500 }}>{call.status === 'in-call' ? trayElapsed : 'Идёт звонок'}</div>
+              </div>
             </button>
           </div>
         ) : (
-          // Desktop: slightly larger card at bottom-right with bigger icon badge
+          // Desktop: beautiful minimized card
           <div style={{ position: 'fixed', right: 20, bottom: 20, zIndex: 2100 }}>
-            <button onClick={restoreCall} title="Вернуться к звонку" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderRadius: 12, background: '#0b0d10', color: '#fff', border: '1px solid rgba(255,255,255,0.06)', cursor: 'pointer', boxShadow: '0 12px 36px rgba(0,0,0,0.55)' }}>
+            <button onClick={restoreCall} title="Вернуться к звонку" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px 14px 14px', borderRadius: 16, background: 'linear-gradient(135deg, rgba(33,150,243,0.12), rgba(33,150,243,0.04))', color: '#fff', border: '1px solid rgba(33,150,243,0.2)', cursor: 'pointer', boxShadow: '0 16px 40px rgba(0,0,0,0.6), inset 0 1px 1px rgba(255,255,255,0.05)', backdropFilter: 'blur(12px)', transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)' }} onMouseEnter={e => { e.currentTarget.style.background = 'linear-gradient(135deg, rgba(33,150,243,0.18), rgba(33,150,243,0.08))'; e.currentTarget.style.boxShadow = '0 18px 46px rgba(33,150,243,0.12), inset 0 1px 1px rgba(255,255,255,0.08)'; }} onMouseLeave={e => { e.currentTarget.style.background = 'linear-gradient(135deg, rgba(33,150,243,0.12), rgba(33,150,243,0.04))'; e.currentTarget.style.boxShadow = '0 16px 40px rgba(0,0,0,0.6), inset 0 1px 1px rgba(255,255,255,0.05)'; }}>
               <div style={{ position: 'relative' }}>
-                <img src={call.targetAvatar || '/window.svg'} alt="a" style={{ width: 48, height: 48, borderRadius: '8px', objectFit: 'cover' }} />
-                <div style={{ position: 'absolute', right: -8, bottom: -8, width: 34, height: 34, borderRadius: 10, background: 'linear-gradient(135deg,#229ed9,#1b7fb3)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 22px rgba(27,127,179,0.2)' }}>
-                  <img src="/phonecall.svg" alt="phone" style={{ width: 18, height: 18 }} />
-                </div>
+                <img src={call.targetAvatar || '/window.svg'} alt="a" style={{ width: 50, height: 50, borderRadius: '12px', objectFit: 'cover', background: '#1a1c1f', border: '1px solid rgba(255,255,255,0.05)' }} />
+                <div style={{ position: 'absolute', bottom: -4, right: -4, width: 16, height: 16, borderRadius: '50%', background: '#22c55e', border: '2px solid rgba(20,21,25,0.95)', boxShadow: '0 2px 8px rgba(34,197,94,0.3)' }} />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-                <div style={{ fontWeight: 700, fontSize: 15 }}>{call.targetName || 'Звонок'}</div>
-                <div style={{ color: '#9aa0a6', fontSize: 13 }}>{call.status === 'in-call' ? trayElapsed : (call.type === 'phone' ? 'Телефонный звонок' : 'Видеозвонок')}</div>
+                <div style={{ fontWeight: 700, fontSize: 14, letterSpacing: '-0.3px' }}>{call.targetName || 'Звонок'}</div>
+                <div style={{ color: '#81d4fa', fontSize: 12, fontWeight: 500, marginTop: 2 }}>{call.status === 'in-call' ? trayElapsed : (call.type === 'phone' ? 'Телефонный звонок' : 'Видеозвонок')}</div>
               </div>
             </button>
           </div>

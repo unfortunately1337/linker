@@ -3,6 +3,7 @@ import dynamic from 'next/dynamic';
 import Pusher from 'pusher-js';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/router';
+import { getFriendDisplayName } from '../../lib/hooks';
 const ToastNotification = dynamic(() => import('./ToastNotification'), { ssr: false });
 import SettingsModal from '../../components/SettingsModal';
 import styles from '../../styles/Chat.module.css';
@@ -183,6 +184,17 @@ const ChatPage: React.FC = () => {
     // eslint-disable-next-line
   }, [session, chats.length]);
 
+  // Прослушиваем изменения кастомных имён друзей для обновления UI
+  useEffect(() => {
+    const updateChatsList = () => {
+      // Принуждаем переренdered при изменении имён
+      setChats(prev => [...prev]);
+    };
+    
+    window.addEventListener('friend-name-changed', updateChatsList as EventListener);
+    return () => window.removeEventListener('friend-name-changed', updateChatsList as EventListener);
+  }, []);
+
   // Вынесите useMemo на верхний уровень компонента
   const chatList = useMemo(() => chats.map(chat => {
     const isGroup = !!chat.name;
@@ -193,7 +205,8 @@ const ChatPage: React.FC = () => {
     const other = !isGroup ? chat.users.find(u => u.id !== meId) : null;
     if (!isGroup) {
       if (other) {
-        title = other.link ? `@${other.link}` : other.login;
+        const defaultName = other.link ? `@${other.link}` : other.login;
+        title = getFriendDisplayName(other.id, defaultName);
         role = other.role;
       }
     } else {
@@ -204,8 +217,8 @@ const ChatPage: React.FC = () => {
       if (!title) {
         const admin = chat.users.find(u => u.role === 'admin') || chat.users[0];
         const otherMember = chat.users.find(u => u.id !== admin?.id) || chat.users[1] || chat.users[0];
-        const adminNick = admin?.link ? `@${admin.link}` : (admin?.login || 'user');
-        const otherNick = otherMember?.link ? `@${otherMember.link}` : (otherMember?.login || 'user');
+        const adminNick = getFriendDisplayName(admin?.id || '', admin?.link ? `@${admin.link}` : (admin?.login || 'user'));
+        const otherNick = getFriendDisplayName(otherMember?.id || '', otherMember?.link ? `@${otherMember.link}` : (otherMember?.login || 'user'));
         title = `Группа (${adminNick}) и (${otherNick})`;
       }
     }
@@ -307,7 +320,7 @@ const ChatPage: React.FC = () => {
           <div style={{width:44}} />
         </div>
         {chats.length === 0 ? (
-          <div className={styles.chatListEmpty}>Нет чатов.<br />Создайте группу или добавьте друзей!</div>
+          <div className={styles.chatListEmpty}>Похоже, тут пусто...<br /></div>
         ) : (
           <div className={styles.chatList}>
             {chatList}

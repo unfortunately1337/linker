@@ -31,33 +31,40 @@ export async function deactivateOtherSessions(userId: string, exceptId?: string)
   const key = `user:${userId}:sessions`;
   const ids = await redis.zrange(key, 0, -1);
   if (!ids || ids.length === 0) return;
+  
   const pipeline = redis.pipeline();
   for (const sid of ids) {
     if (exceptId && sid === exceptId) continue;
     const sKey = `session:${sid}`;
-    pipeline.get(sKey);
+    // Прямо обновляем в Redis без чтения сначала
+    pipeline.getex(sKey); // получаем сессию
   }
   const res = await pipeline.exec();
-  // res is array of [err, val]
+  
   if (!res) return;
-  const setPipeline = redis.pipeline();
+  
+  // Обновляем все неактивные сессии в одном pipeline
+  const updatePipeline = redis.pipeline();
   for (let i = 0; i < res.length; i++) {
     const entry = res[i] as any;
     if (!entry) continue;
     const [err, val] = entry;
-    if (err) continue;
-    if (!val) continue;
+    if (err || !val) continue;
     try {
       const obj = JSON.parse(val as string) as SessionRecord;
       if (obj.isActive) {
         obj.isActive = false;
-        setPipeline.set(`session:${obj.id}`, JSON.stringify(obj));
+        updatePipeline.set(`session:${obj.id}`, JSON.stringify(obj));
       }
     } catch (e) {
-      // ignore
+      // ignore parse errors
     }
   }
-  await setPipeline.exec();
+  
+  // Выполняем все обновления одним batched запросом
+  if (updatePipeline.length > 0) {
+    await updatePipeline.exec();
+  }
 }
 
 export async function endSession(sessionId: string) {

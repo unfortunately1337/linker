@@ -1,9 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import prisma from "../../lib/prisma";
-import { getUserSessions } from '../../lib/redis';
 import { pusher } from "../../lib/pusher";
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from './auth/[...nextauth]';
+import { getUserSessions } from '../../lib/sessions';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === "GET") {
@@ -21,25 +21,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           where: { id: userId },
           include: {
             friends: true,
+            sessions: true,
           },
         });
-
-        if (user) {
-          const rSessions = await getUserSessions(user.id);
-          (user as any).sessions = rSessions;
-        }
       } else if (login && typeof login === "string") {
         user = await prisma.user.findUnique({
           where: { login },
           include: {
             friends: true,
+            sessions: true,
           },
         });
-
-        if (user) {
-          const rSessions = await getUserSessions(user.id);
-          (user as any).sessions = rSessions;
-        }
       } else {
         return res.status(400).json({ error: "userId or login required" });
       }
@@ -119,7 +111,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       const saved = (user as any).status;
       const allowed = ['online', 'offline', 'dnd'];
-      const userSessions = ((user as any).sessions || []);
+      const userSessions = ((user as any).sessions || []).filter((s: any) => s.isActive);
+      
+      console.log('[PROFILE API] User sessions:', userSessions.length, 'sessions found');
 
       const mainStatus =
         (typeof saved === 'string' && allowed.includes(saved))

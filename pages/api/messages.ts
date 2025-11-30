@@ -141,9 +141,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(500).json({ error: 'Encryption failed', details: String(encErr?.message || encErr) });
       }
 
-      // Создаём сообщение в БД
+      // Создаём сообщение в БД со статусом sent
       const message = await prisma.message.create({
-        data: { chatId, senderId: user.id, text: encryptedText, createdAt: new Date() }
+        data: { chatId, senderId: user.id, text: encryptedText, createdAt: new Date(), status: 'sent' }
       });
 
       // Не включаем plaintext в ответ/пушер — отправляем только метаданные и id.
@@ -152,6 +152,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         chatId: message.chatId,
         senderId: message.senderId,
         createdAt: message.createdAt,
+        status: message.status,
         audioUrl: (message as any).audioUrl || null,
         videoUrl: (message as any).videoUrl || null,
       } as any;

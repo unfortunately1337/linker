@@ -1,8 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import prisma from "../../lib/prisma";
-import { endSession } from '../../lib/redis';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from './auth/[...nextauth]';
+import { endSession } from '../../lib/sessions';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") return res.status(405).end();
@@ -16,7 +16,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // Only allow ending sessions for yourself
   if (String(currentUserId) !== String(userId)) return res.status(403).json({ error: 'Forbidden' });
 
-  // Завершаем сессию (только свою) — помечаем неактивной в Redis
+  // End the session in PostgreSQL
   await endSession(sessionId);
   return res.status(200).json({ ok: true });
 }

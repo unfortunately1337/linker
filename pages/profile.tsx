@@ -1,5 +1,6 @@
 import { getUser } from "../lib/session";
 import { forbiddenPasswords } from "../lib/forbidden-passwords";
+import { getFriendDisplayName } from "../lib/hooks";
 import { FaUserCircle, FaCog, FaShieldAlt, FaPalette, FaLaptop, FaMobileAlt, FaDesktop, FaSignOutAlt, FaQrcode } from "react-icons/fa";
 import styles from "../components/SettingsProfile.module.css";
 import React, { useState, useEffect, useRef } from "react";
@@ -266,6 +267,17 @@ export default function ProfilePage() {
         setSessions([]);
       });
   }, [session, status]);
+
+  // Прослушиваем изменения кастомных имён друзей для обновления UI
+  useEffect(() => {
+    const updateFriendsList = () => {
+      // Принуждаем переренdered при изменении имён
+      setFriends(prev => [...prev]);
+    };
+    
+    window.addEventListener('friend-name-changed', updateFriendsList as EventListener);
+    return () => window.removeEventListener('friend-name-changed', updateFriendsList as EventListener);
+  }, []);
 
   // If user has 3 or more friends, enable compact scroll for the friends list
   const isFriendsScrollable = Array.isArray(friends) && friends.length >= 3;
@@ -665,7 +677,7 @@ export default function ProfilePage() {
                     <span style={{ position: "absolute", left: 32, top: 32, width: 12, height: 12, borderRadius: "50%", background: f.isOnline ? "#1ed760" : "#888", border: "2px solid #23242a" }} />
                   </div>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <span style={{ fontSize: 17, fontWeight: 600, cursor: "pointer", color: "#fff" }} onClick={() => window.location.href = `/profile/${f.id}`}>{f.link ? `@${f.link}` : (f.login || f.friendId)}</span>
+                    <span style={{ fontSize: 17, fontWeight: 600, cursor: "pointer", color: "#fff" }} onClick={() => window.location.href = `/profile/${f.id}`}>{getFriendDisplayName(f.id, f.link ? `@${f.link}` : (f.login || f.friendId))}</span>
                     {f.role === "admin" && (
                       <img src="/role-icons/admin.svg" alt="admin" style={{width:24, height:24, marginLeft:4, verticalAlign:'middle'}} />
                     )}

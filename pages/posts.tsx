@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
+import { getFriendDisplayName } from '../lib/hooks';
 
 // Small portal for rendering modal content into document.body
 function ModalPortal({ children }: { children: React.ReactNode }) {
@@ -190,6 +191,17 @@ export default function PostsPage() {
     nodes.forEach(n => { try { obs.observe(n); } catch (e) {} });
     return () => nodes.forEach(n => { try { obs.unobserve(n); } catch (e) {} });
   }, [posts]);
+
+  // Прослушиваем изменения кастомных имён друзей для обновления UI
+  useEffect(() => {
+    const updatePostsList = () => {
+      // Принуждаем переренdered при изменении имён
+      setPosts(prev => [...prev]);
+    };
+    
+    window.addEventListener('friend-name-changed', updatePostsList as EventListener);
+    return () => window.removeEventListener('friend-name-changed', updatePostsList as EventListener);
+  }, []);
 
     async function fetchPosts(){
       const r = await fetch('/api/posts', { credentials: 'include' });
@@ -393,7 +405,7 @@ export default function PostsPage() {
                   <div className="authorWrap" onClick={()=> window.location.href = `/profile/${p.authorId || p.author?.id}`}>
                     {p.author?.avatar ? <img src={p.author.avatar} className="postAvatar" /> : <div className="postAvatarFallback">{(p.author && p.author.login) ? p.author.login[0] : (p.authorId ? 'U' : 'U')}</div>}
                   <div className="authorCol">
-                    <div className="authorName">{p.author?.link ? `@${p.author.link}` : (p.author?.login || 'User')}
+                    <div className="authorName">{getFriendDisplayName(p.author?.id || p.authorId || '', p.author?.link ? `@${p.author.link}` : (p.author?.login || 'User'))}
                       {isOwnerUi ? (
                         <span style={{ marginLeft: 8, fontSize: 12, color: '#ffd27a', fontWeight: 700 }}>Ваш пост</span>
                       ) : (

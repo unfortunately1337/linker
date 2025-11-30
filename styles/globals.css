@@ -4,6 +4,9 @@
   scrollbar-width: thin;
   scrollbar-color: #229ed9 #18191c;
 }
+/* Load Outfit font for message bubbles (rounded, modern) */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap');
+
 .chat-messages-scroll::-webkit-scrollbar {
   width: 12px;
   background: #18191c;

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { getUser } from "../lib/session";
+import { getFriendDisplayName } from "../lib/hooks";
 import Sidebar from "../components/Sidebar";
 import ToastNotification from "../components/ToastNotification";
 import { FiSearch, FiUserPlus, FiCheck, FiX } from "react-icons/fi";
@@ -114,6 +115,18 @@ export default function FriendsPage() {
       });
   }, []);
 
+  // Прослушиваем изменения кастомных имён друзей для обновления UI
+  useEffect(() => {
+    const updateFriendsList = () => {
+      // Принуждаем переренdered при изменении имён
+      setFriends(prev => [...prev]);
+      setSearchResult(prev => prev ? [...prev] : null);
+    };
+    
+    window.addEventListener('friend-name-changed', updateFriendsList as EventListener);
+    return () => window.removeEventListener('friend-name-changed', updateFriendsList as EventListener);
+  }, []);
+
   return (
     <div className={styles.friendsPage}>
       <div className={styles.header}>
@@ -165,7 +178,7 @@ export default function FriendsPage() {
                       </div>
                       <div className={styles.userInfo}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <div className={styles.username}>{foundUser.link ? `@${foundUser.link}` : foundUser.login}</div>
+                          <div className={styles.username}>{getFriendDisplayName(foundUser.id, foundUser.link ? `@${foundUser.link}` : foundUser.login)}</div>
                           <img src={`/role-icons/${foundUser.role || 'user'}.svg`} alt={foundUser.role || 'user'} style={{ width: 16, height: 16 }} />
                         </div>
                         <div className={styles.userMeta}>{foundUser.description || ''}</div>
@@ -205,7 +218,7 @@ export default function FriendsPage() {
                     </div>
                     <div style={{ flex: 1 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div style={{ color: '#fff', fontWeight: 700, cursor: 'pointer' }} onClick={() => window.location.href = `/profile/${r.id}`}>{r.link ? `@${r.link}` : r.login}</div>
+                        <div style={{ color: '#fff', fontWeight: 700, cursor: 'pointer' }} onClick={() => window.location.href = `/profile/${r.id}`}>{getFriendDisplayName(r.id, r.link ? `@${r.link}` : r.login)}</div>
                         <img src={`/role-icons/${r.role || 'user'}.svg`} alt={r.role || 'user'} style={{ width: 16, height: 16 }} />
                       </div>
                       <div style={{ color: '#9fbfe6', fontSize: 13 }}>{r.description || ''}</div>

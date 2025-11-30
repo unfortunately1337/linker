@@ -140,6 +140,10 @@
   position: relative;
 }
 
+.mobileMenuBar {
+  display: none;
+}
+
 .menuItem {
   display: flex;
   align-items: center;
@@ -852,5 +856,441 @@
     width: 28px;
     height: 36px;
     font-size: 16px;
+  }
+}
+
+/* Mobile optimization for settings */
+@media (max-width: 768px) {
+  .overlay {
+    padding-top: 0;
+    align-items: flex-end;
+  }
+
+  .modal {
+    width: 100%;
+    max-width: 100%;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+    height: auto;
+    max-height: 100vh;
+    border-radius: 16px 16px 0 0;
+    gap: 0;
+  }
+
+  .sidebar {
+    display: none;
+  }
+
+  .mobileMenuBar {
+    display: flex;
+    gap: 0;
+    padding: 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    background: rgba(255, 255, 255, 0.01);
+    overflow-x: auto;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+    order: -2;
+  }
+
+  .content {
+    height: auto;
+    max-height: calc(100vh - 80px);
+  }
+
+  .contentHeader {
+    padding: 16px 20px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  .contentScroll {
+    padding: 16px 16px 20px 16px;
+  }
+
+  .profileHeader {
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    order: -1;
+  }
+
+  .profileHeaderContent {
+    gap: 8px;
+  }
+
+  .avatar {
+    width: 44px;
+    height: 44px;
+  }
+
+  .username {
+    font-size: 12px;
+  }
+
+  .usernameSmall {
+    font-size: 10px;
+  }
+
+  .close {
+    right: 16px;
+    top: 16px;
+    width: 28px;
+    height: 28px;
+    font-size: 20px;
+  }
+
+  /* Mobile tab menu */
+  .mobileMenu {
+    display: flex;
+    gap: 0;
+    padding: 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    background: rgba(255, 255, 255, 0.01);
+    overflow-x: auto;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .mobileMenu .menuItem {
+    flex: 1;
+    min-width: 100px;
+    border-radius: 0;
+    padding: 12px 12px;
+    gap: 6px;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    white-space: nowrap;
+    font-size: 12px;
+  }
+
+  .mobileMenu .menuItem.active {
+    border-bottom-color: #64b5f6;
+    color: #64b5f6;
+  }
+
+  .card {
+    padding: 12px 14px;
+    margin-bottom: 10px;
+  }
+
+  .cardTitle {
+    font-size: 13px;
+    margin-bottom: 10px;
+  }
+
+  .cardInput {
+    padding: 10px 12px;
+    font-size: 14px;
+    border-radius: 8px;
+    margin-bottom: 8px;
+  }
+
+  .btn {
+    padding: 10px 16px;
+    font-size: 12px;
+    border-radius: 8px;
+  }
+
+  .inputGroup {
+    gap: 8px;
+    flex-direction: column;
+  }
+
+  .inputGroup .cardInput {
+    width: 100%;
+  }
+
+  .btnGroup {
+    gap: 8px;
+    flex-direction: column;
+  }
+
+  .btnGroup > button {
+    width: 100%;
+    padding: 11px 14px;
+  }
+
+  .statusBtn {
+    width: 40px;
+    height: 40px;
+    font-size: 16px;
+  }
+
+  .linkInput {
+    font-size: 14px;
+  }
+
+  .description {
+    font-size: 13px;
+  }
+
+  .qrContainer {
+    width: 120px;
+    height: 120px;
+  }
+
+  .twoFAIcon {
+    width: 24px;
+    height: 24px;
+  }
+
+  .codeInputContainer {
+    gap: 6px;
+    margin: 16px 0;
+  }
+
+  .codeInput {
+    width: 40px;
+    height: 44px;
+    font-size: 20px;
+  }
+
+  .sessionItem {
+    padding: 10px 12px;
+    margin-bottom: 8px;
+  }
+
+  .sessionText {
+    font-size: 12px;
+  }
+
+  .sessionBtn {
+    padding: 6px 10px;
+    font-size: 11px;
+  }
+
+  .section {
+    margin-bottom: 12px;
+  }
+
+  .sectionTitle {
+    font-size: 12px;
+  }
+
+  .cardLabel {
+    font-size: 11px;
+  }
+
+  .cardDescription {
+    font-size: 10px;
+  }
+}
+
+@media (max-width: 600px) {
+  .overlay {
+    padding: 0;
+  }
+
+  .modal {
+    border-radius: 12px 12px 0 0;
+    max-height: 100vh;
+  }
+
+  .contentHeader {
+    padding: 14px 16px;
+    font-size: 14px;
+  }
+
+  .contentScroll {
+    padding: 12px 14px 16px 14px;
+  }
+
+  .profileHeader {
+    padding: 12px 14px;
+  }
+
+  .avatar {
+    width: 40px;
+    height: 40px;
+  }
+
+  .username {
+    font-size: 11px;
+  }
+
+  .usernameSmall {
+    font-size: 9px;
+  }
+
+  .card {
+    padding: 10px 12px;
+    border-radius: 10px;
+    margin-bottom: 8px;
+  }
+
+  .cardTitle {
+    font-size: 12px;
+    margin-bottom: 8px;
+  }
+
+  .cardInput {
+    padding: 9px 11px;
+    font-size: 13px;
+    margin-bottom: 6px;
+  }
+
+  .btn {
+    padding: 9px 14px;
+    font-size: 11px;
+  }
+
+  .btnGroup > button {
+    padding: 10px 12px;
+  }
+
+  .statusBtn {
+    width: 36px;
+    height: 36px;
+    font-size: 14px;
+  }
+
+  .qrContainer {
+    width: 100px;
+    height: 100px;
+  }
+
+  .codeInput {
+    width: 34px;
+    height: 40px;
+    font-size: 18px;
+  }
+
+  .codeInputContainer {
+    gap: 5px;
+  }
+
+  .sessionItem {
+    padding: 8px 10px;
+    font-size: 11px;
+  }
+
+  .cardLabel {
+    font-size: 11px;
+  }
+
+  .cardDescription {
+    font-size: 10px;
+  }
+
+  .mobileMenuBar .menuItem {
+    min-width: 90px;
+    padding: 10px 10px;
+    font-size: 11px;
+  }
+
+  .contentHeaderIcon {
+    width: 18px;
+    height: 18px;
+  }
+
+  .contentHeaderTitle {
+    font-size: 13px;
+  }
+
+  .section {
+    margin-bottom: 10px;
+  }
+
+  .sectionTitle {
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 480px) {
+  .contentScroll {
+    padding: 10px 12px 14px 12px;
+  }
+
+  .avatar {
+    width: 36px;
+    height: 36px;
+  }
+
+  .card {
+    padding: 8px 10px;
+    margin-bottom: 6px;
+  }
+
+  .cardTitle {
+    font-size: 11px;
+    margin-bottom: 6px;
+  }
+
+  .cardInput {
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+
+  .btn {
+    padding: 8px 12px;
+    font-size: 10px;
+  }
+
+  .codeInput {
+    width: 30px;
+    height: 36px;
+    font-size: 16px;
+  }
+
+  .qrContainer {
+    width: 90px;
+    height: 90px;
+  }
+
+  .contentHeaderIcon {
+    width: 16px;
+    height: 16px;
+  }
+
+  .contentHeaderText {
+    font-size: 12px;
+  }
+
+  .mobileMenuBar .menuItem {
+    min-width: 80px;
+    padding: 9px 8px;
+    font-size: 10px;
+    gap: 4px;
+  }
+
+  .mobileMenuBar .menuItem svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .section {
+    margin-bottom: 8px;
+  }
+
+  .sectionTitle {
+    font-size: 10px;
+  }
+
+  .profileHeaderContent {
+    gap: 6px;
+  }
+
+  .close {
+    width: 24px;
+    height: 24px;
+    font-size: 18px;
+    right: 12px;
+    top: 12px;
+  }
+
+  .contentHeader {
+    padding: 12px 14px;
+  }
+
+  .username {
+    font-size: 10px;
+  }
+
+  .usernameSmall {
+    font-size: 8px;
   }
 }
