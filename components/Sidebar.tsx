@@ -217,16 +217,15 @@ export default function Sidebar() {
 
   const logout = () => {
     // Clear local cache and perform a full sign out via NextAuth.
-    // Use the current origin as the callback (homepage).
     try { clearUser(); } catch (e) {}
     setUser(null);
     setOpen(false);
-    // trigger NextAuth signOut which will redirect the user to the homepage
+    // trigger NextAuth signOut which will redirect to auth/login
     try {
-      signOut({ callbackUrl: `${window.location.origin}/` as any });
+      signOut({ callbackUrl: "/auth/login" as any });
     } catch (e) {
       // fallback: router push
-      router.push("/");
+      router.push("/auth/login");
     }
   };
 
