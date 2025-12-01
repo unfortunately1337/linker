@@ -56,7 +56,7 @@ function parseForm(req: NextApiRequest): Promise<{ fields: any; files: any }> {
   });
 }
 
-export default async function videoUploadHandler(req: NextApiRequest, res: NextApiResponse) {
+export async function videoUploadHandler(req: NextApiRequest, res: NextApiResponse) {
   // CORS: prefer echoing request origin when present so credentialed requests work.
   const origin = (req.headers.origin as string) || '';
   if (origin) res.setHeader('Access-Control-Allow-Origin', origin);
