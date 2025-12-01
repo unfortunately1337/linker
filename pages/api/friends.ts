@@ -4,22 +4,14 @@ import { getSession } from 'next-auth/react';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const session = await getSession({ req });
-  console.log('FRIENDS API session:', session);
-  console.log('FRIENDS API login:', session?.user?.name);
-  console.log('FRIENDS API headers:', req.headers);
-  console.log('FRIENDS API cookies:', req.cookies);
+  console.log('[FRIENDS API] User request - authenticated:', !!session?.user);
   if (!session || !session.user?.email) {
-    return res.status(401).json({
-      error: 'Unauthorized',
-      session,
-      headers: req.headers,
-      cookies: req.cookies
-    });
+    return res.status(401).json({ error: 'Unauthorized' });
   }
-  if (typeof session.user.name !== 'string') return res.status(401).json({ error: 'session.user.name not string', session });
+  if (typeof session.user.name !== 'string') return res.status(401).json({ error: 'Invalid session' });
   const login = session.user.name;
   const user = await prisma.user.findUnique({ where: { login } });
-  if (!user) return res.status(401).json({ error: 'user not found', login, session });
+  if (!user) return res.status(401).json({ error: 'User not found' });
   const userId = user.id;
 
   // Получаем связи друзей

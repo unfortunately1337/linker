@@ -1,10 +1,7 @@
 
-
-
-
-
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
+import { loginLimiter, twoFALimiter } from "../../../lib/rateLimiter";
 
 import prisma from "../../../lib/prisma";
 import { createSession, deactivateOtherSessions } from "../../../lib/sessions";
@@ -20,26 +17,26 @@ export const authOptions = {
     },
       async authorize(credentials, req) {
         if (!credentials?.login || !credentials?.password) {
-          console.error('No login or password provided');
+          console.log('[AUTH] Missing credentials');
           return null;
         }
         const user = await prisma.user.findUnique({ where: { login: credentials.login } });
         if (!user) {
-          console.error('User not found:', credentials.login);
+          console.log('[AUTH] User not found');
           return null;
         }
         // Сравниваем хэш пароля
         const bcrypt = require('bcryptjs');
         const valid = await bcrypt.compare(credentials.password, user.password);
         if (!valid) {
-          console.error('Invalid password for user:', credentials.login);
+          console.log('[AUTH] Invalid password');
           return null;
         }
         // Если у пользователя включена 2FA — проверяем TOTP код
         if (user.twoFactorEnabled) {
           const speakeasy = require('speakeasy');
           if (!credentials?.twoFactorCode) {
-            console.error('2FA code required for user:', credentials.login);
+            console.log('[AUTH] 2FA code required');
             return null;
           }
           const verified = speakeasy.totp.verify({
@@ -49,7 +46,7 @@ export const authOptions = {
             window: 1
           });
           if (!verified) {
-            console.error('Invalid 2FA code for user:', credentials.login);
+            console.log('[AUTH] Invalid 2FA code');
             return null;
           }
         }
@@ -86,6 +83,18 @@ export const authOptions = {
     // when using JWT strategy, set jwt maxAge as well (30 days)
     maxAge: 60 * 60 * 24 * 30,
   },
+  cookies: {
+    sessionToken: {
+      name: 'next-auth.session-token',
+      options: {
+        httpOnly: true,
+        secure: process.env.NEXTAUTH_URL?.startsWith('https') ?? false,
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 30 * 24 * 60 * 60, // 30 days
+      }
+    }
+  },
   secret: process.env.NEXTAUTH_SECRET || "dev-secret",
   callbacks: {
     async jwt({ token, user }: { token: any, user?: any }) {
@@ -112,4 +121,14 @@ export const authOptions = {
     }
   }
 };
-export default NextAuth(authOptions);
+
+// Wrap NextAuth with rate limiters
+const authHandler = NextAuth(authOptions);
+
+export default async (req: any, res: any) => {
+  // Apply rate limiting to login attempts
+  if (req.method === 'POST' && req.url?.includes('/callback/credentials')) {
+    return loginLimiter(req, res, () => authHandler(req, res));
+  }
+  return authHandler(req, res);
+};

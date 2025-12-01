@@ -340,10 +340,23 @@
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
   background: 
-    radial-gradient(ellipse 800px 600px at 20% 50%, rgba(26, 58, 82, 0.08) 0%, transparent 70%),
-    radial-gradient(ellipse 600px 800px at 80% 20%, rgba(15, 23, 42, 0.1) 0%, transparent 70%),
-    linear-gradient(135deg, #0a0c0f 0%, #0f1117 50%, #0d0e12 100%);
+    radial-gradient(ellipse 1000px 700px at 20% 50%, rgba(30, 60, 90, 0.12) 0%, transparent 60%),
+    radial-gradient(ellipse 800px 1000px at 80% 20%, rgba(35, 50, 75, 0.1) 0%, transparent 60%),
+    linear-gradient(135deg, #0d0e12 0%, #0f1218 50%, #101620 100%);
   background-attachment: fixed;
+  animation: gradientShift 12s ease-in-out infinite;
+}
+
+@keyframes gradientShift {
+  0% {
+    background-position: 0% 0%;
+  }
+  50% {
+    background-position: 100% 100%;
+  }
+  100% {
+    background-position: 0% 0%;
+  }
 }
 
 .messagesContainer::-webkit-scrollbar {
@@ -407,6 +420,7 @@
   flex-direction: column;
   gap: 4px;
   max-width: 70%;
+  font-size: var(--chat-font-size, 15px);
 }
 
 .messageBubbleOther .messageContent {
@@ -446,8 +460,10 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
   display: inline-block;
   word-wrap: break-word;
+  word-break: break-word;
+  max-width: 85%;
   font-weight: 600;
-  font-size: 15.5px;
+  font-size: var(--chat-font-size, 15.5px);
   line-height: 1.35;
   letter-spacing: 0.2px;
   position: relative;
@@ -462,7 +478,9 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
   display: inline-block;
   word-wrap: break-word;
-  font-size: 15.5px;
+  word-break: break-word;
+  max-width: 90%;
+  font-size: var(--chat-font-size, 15.5px);
   line-height: 1.35;
   letter-spacing: 0.2px;
   position: relative;
@@ -493,7 +511,7 @@
 
 /* Input Area */
 .inputArea {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.01));
+  background: transparent;
   -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
   border-top: 1px solid rgba(255, 255, 255, 0.06);
@@ -504,16 +522,18 @@
   position: relative;
   z-index: 10;
   flex-shrink: 0;
-  width: 100%;
+  width: calc(100% - 24px);
   box-sizing: border-box;
-  border-radius: 28px 28px 0 0;
+  border-radius: 28px;
   box-shadow: 0 -12px 32px rgba(0, 0, 0, 0.2);
+  margin: 0 auto 12px auto;
+  margin-top: 16px;
 }
 
 .inputField {
   flex: 1;
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03));
-  border: 1px solid rgba(100, 181, 246, 0.15);
+  border: none;
   border-radius: 24px;
   padding: 12px 18px;
   color: #ffffff;

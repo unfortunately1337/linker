@@ -2,13 +2,54 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 
+function addSecurityHeaders(response: NextResponse) {
+  // Prevent MIME type sniffing
+  response.headers.set('X-Content-Type-Options', 'nosniff');
+
+  // Prevent clickjacking
+  response.headers.set('X-Frame-Options', 'DENY');
+
+  // XSS Protection
+  response.headers.set('X-XSS-Protection', '1; mode=block');
+
+  // HSTS (Force HTTPS, 1 year)
+  response.headers.set(
+    'Strict-Transport-Security',
+    'max-age=31536000; includeSubDomains; preload'
+  );
+
+  // Referrer Policy
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+
+  // CSP Header
+  response.headers.set(
+    'Content-Security-Policy',
+    "default-src 'self'; " +
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; " +
+    "style-src 'self' 'unsafe-inline'; " +
+    "img-src 'self' data: https:; " +
+    "font-src 'self' data:; " +
+    "connect-src 'self' https://js.pusher.com wss://ws.pusher.com; " +
+    "frame-ancestors 'none'"
+  );
+
+  // Permissions Policy
+  response.headers.set(
+    'Permissions-Policy',
+    'geolocation=(), payment=()'
+  );
+
+  return response;
+}
+
 export async function middleware(request: NextRequest) {
   try {
     const path = request.nextUrl.pathname;
 
     // Allow auth pages so unauthenticated users can sign in / register
     if (path === '/auth/login' || path === '/auth/register') {
-      return NextResponse.next();
+      const response = NextResponse.next();
+      return addSecurityHeaders(response);
     }
 
     // Allow public and Next.js internal assets (matcher excludes many, but keep safe)
@@ -25,10 +66,12 @@ export async function middleware(request: NextRequest) {
     }
 
     // Authenticated — allow
-    return NextResponse.next();
+    const response = NextResponse.next();
+    return addSecurityHeaders(response);
   } catch (e) {
-    console.error('Middleware error:', e);
-    return NextResponse.next();
+    console.error('[MIDDLEWARE] Authentication error');
+    const response = NextResponse.next();
+    return addSecurityHeaders(response);
   }
 }
 

@@ -62,9 +62,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       res.setHeader('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
       return res.status(200).send(buf);
     } catch (e) {
-      console.error('/api/media/[id] error converting DB binary to Buffer', e);
+      console.error('[MEDIA API] Error serving media:', (e as any)?.message);
       res.setHeader('Cache-Control', 'no-cache');
-      return res.status(500).json({ error: 'Failed to serve media', detail: String((e as any)?.message || e) });
+      const isDev = process.env.NODE_ENV === 'development';
+      return res.status(500).json({
+        error: 'Failed to serve media',
+        ...(isDev && { detail: String((e as any)?.message) })
+      });
     }
   }
 

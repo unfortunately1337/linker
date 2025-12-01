@@ -7,6 +7,7 @@ import prisma from '../../../lib/prisma';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../auth/[...nextauth]';
 import { getStoragePath, ensureDir } from '../../../lib/storage';
+import { uploadLimiter } from '../../../lib/rateLimiter';
 // No encryption for voice files anymore — store raw files under pages/api/.private_media/voice
 import { pusher } from '../../../lib/pusher';
 
@@ -52,7 +53,7 @@ function parseForm(req: NextApiRequest): Promise<{ fields: any; files: any }> {
 	});
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function voiceUploadHandler(req: NextApiRequest, res: NextApiResponse) {
 		// CORS: prefer echoing request origin when present so credentialed requests work.
 		const origin = (req.headers.origin as string) || '';
 		if (origin) res.setHeader('Access-Control-Allow-Origin', origin);
@@ -77,28 +78,52 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 		} catch (se) {
 			console.error('[VOICE UPLOAD] getServerSession error:', se);
 		}
+		console.log('[VOICE UPLOAD] Session user:', sessionEarly?.user?.id);
 		if (!sessionEarly || !sessionEarly.user?.id) {
+			console.log('[VOICE UPLOAD] Unauthorized - no session');
 			return res.status(401).json({ error: 'Unauthorized: login required to upload audio' });
 		}
 
 		let fields: any, files: any;
 		try {
 			({ fields, files } = await parseForm(req));
+			console.log('[VOICE UPLOAD] Form parsed, files:', Object.keys(files || {}));
 		} catch (pfErr: any) {
-			console.error('[VOICE UPLOAD] parseForm failed:', pfErr && pfErr.stack ? pfErr.stack : String(pfErr));
-			res.status(500).json({ error: 'Failed to parse multipart form', details: String(pfErr), stack: pfErr?.stack });
+			console.error('[VOICE UPLOAD] Parse error:', pfErr);
+			const isDev = process.env.NODE_ENV === 'development';
+			res.status(500).json({
+				error: 'Failed to parse multipart form',
+				...(isDev && { details: String(pfErr) })
+			});
 			return;
 		}
-		console.log('[VOICE UPLOAD] parsed fields:', fields);
-		console.log('[VOICE UPLOAD] parsed files keys:', Object.keys(files || {}));
-		console.log('[VOICE UPLOAD] raw audio object:', files?.audio);
-		   let audio = files.audio;
-		   console.log('[VOICE UPLOAD] audio.filepath:', (audio as any)?.filepath || (audio as any)?.path);
-		   if (Array.isArray(audio)) audio = audio[0];
-		   let file: any, fileType: string | undefined, fileExt: string | undefined;
-		   let uploadDir: string, fileName: string, filePath: string, urlField: string, urlValue: string;
-		   let chatId = fields.chatId;
-		   if (Array.isArray(chatId)) chatId = chatId[0];
+		
+		const MAX_AUDIO_SIZE = 10 * 1024 * 1024; // 10 MB
+		const ALLOWED_AUDIO_TYPES = ['audio/webm', 'audio/mpeg', 'audio/wav', 'audio/ogg'];
+		
+		let audio = files.audio;
+		if (Array.isArray(audio)) audio = audio[0];
+		
+		// Validate file size
+		if (audio && audio.size && audio.size > MAX_AUDIO_SIZE) {
+			return res.status(413).json({
+				error: 'Audio file too large',
+				maxSize: '10 MB'
+			});
+		}
+		
+		// Validate MIME type
+		if (audio && audio.mimetype && !ALLOWED_AUDIO_TYPES.includes(audio.mimetype)) {
+			return res.status(400).json({
+				error: 'Invalid audio format',
+				allowed: ALLOWED_AUDIO_TYPES
+			});
+		}
+		
+		let file: any, fileType: string | undefined, fileExt: string | undefined;
+		let uploadDir: string, fileName: string, filePath: string, urlField: string, urlValue: string;
+		let chatId = fields.chatId;
+		if (Array.isArray(chatId)) chatId = chatId[0];
 
            if (!chatId) {
                throw new Error('No chatId provided');
@@ -264,13 +289,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 		try {
 			const savedPath = path.join(getStoragePath('voice'), path.basename(urlValue));
 			const fileSaved = fs.existsSync(savedPath);
+			console.log('[VOICE UPLOAD] Sending response:', { [urlField]: urlValue, messageId: message.id, persisted, dbError, fileSaved });
 			res.status(200).json({ [urlField]: urlValue, message, persisted, dbError, fileName: path.basename(savedPath), fileSaved });
 		} catch (err) {
 			console.error('[VOICE UPLOAD] Error checking saved file existence:', err);
+			console.log('[VOICE UPLOAD] Sending fallback response');
 			res.status(200).json({ [urlField]: urlValue, message, persisted, dbError });
 		}
 	} catch (e) {
 		console.error('Voice upload error:', e);
 		res.status(500).json({ error: 'Upload failed', details: String(e) });
 	}
+}
+
+export default function handler(req: NextApiRequest, res: NextApiResponse) {
+	return uploadLimiter(req, res, () => voiceUploadHandler(req, res));
 }

@@ -12,8 +12,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   } else if (session && session.user?.name) {
     user = await prisma.user.findUnique({ where: { login: session.user.name } });
   }
-  console.log('API /api/chats: session.user', session.user);
-  console.log('API /api/chats: resolved user', user);
+  console.log('[API] /api/chats: authenticated user request');
   if (!session || !user) {
     return res.status(401).json({ error: 'Unauthorized' });
   }

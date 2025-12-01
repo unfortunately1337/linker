@@ -1647,89 +1647,122 @@ const ChatWithFriend: React.FC = () => {
                   onClick={async () => {
                     if (!isRecording) {
                       // Начать запись
-                      if (!navigator.mediaDevices) return;
-                      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                      // Используем audio/webm если поддерживается
-                      let mimeType = 'audio/webm';
-                      if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = '';
-                      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
-                      setMediaRecorder(recorder);
-                      audioChunksRef.current = [];
-                      setIsRecording(true);
-                      setRecordTime(0);
-                      if (recordInterval.current) clearInterval(recordInterval.current);
-                      recordInterval.current = setInterval(() => setRecordTime(t => t + 1), 1000);
-                      recorder.ondataavailable = (e) => {
-                        audioChunksRef.current.push(e.data);
-                      };
-                      recorder.onstop = async () => {
-                        if (recordInterval.current) clearInterval(recordInterval.current);
-                        setIsRecording(false);
-                        setRecordTime(0);
-                        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType || 'audio/webm' });
+                      try {
+                        if (!navigator.mediaDevices) {
+                          alert('Your browser does not support audio recording');
+                          return;
+                        }
+                        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                        // Используем audio/webm если поддерживается
+                        let mimeType = 'audio/webm';
+                        if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = '';
+                        const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+                        
                         audioChunksRef.current = [];
-                        // Optimistic UI: create a temporary message so user sees upload in progress
-                        const tempId = 'temp-audio-' + Date.now();
-                        const tempObjUrl = URL.createObjectURL(audioBlob);
-                        const tempMsg: Message = {
-                          id: tempId,
-                          sender: (session?.user as any)?.id || '',
-                          text: '',
-                          createdAt: new Date().toISOString(),
-                          audioUrl: tempObjUrl,
-                          videoUrl: undefined,
-                          _key: tempId,
-                          _persisted: false,
-                          _failed: false,
+                        
+                        recorder.ondataavailable = (e) => {
+                          audioChunksRef.current.push(e.data);
                         };
-                        setMessages(prev => [...prev, tempMsg]);
+                        
+                        recorder.onstop = async () => {
+                          if (recordInterval.current) clearInterval(recordInterval.current);
+                          setIsRecording(false);
+                          setRecordTime(0);
+                          
+                          console.log('[VOICE] Recording stopped, chunks:', audioChunksRef.current.length);
+                          
+                          const audioBlob = new Blob(audioChunksRef.current, { type: mimeType || 'audio/webm' });
+                          console.log('[VOICE] Blob created, size:', audioBlob.size);
+                          audioChunksRef.current = [];
+                          
+                          // Stop all tracks after data is collected
+                          stream.getTracks().forEach(track => track.stop());
+                          console.log('[VOICE] Tracks stopped');
+                          
+                          // Optimistic UI: create a temporary message so user sees upload in progress
+                          const tempId = 'temp-audio-' + Date.now();
+                          const tempObjUrl = URL.createObjectURL(audioBlob);
+                          const tempMsg: Message = {
+                            id: tempId,
+                            sender: (session?.user as any)?.id || '',
+                            text: '',
+                            createdAt: new Date().toISOString(),
+                            audioUrl: tempObjUrl,
+                            videoUrl: undefined,
+                            _key: tempId,
+                            _persisted: false,
+                            _failed: false,
+                          };
+                          setMessages(prev => [...prev, tempMsg]);
+                          console.log('[VOICE] Temp message added');
 
-                        const formData = new FormData();
-                        formData.append('chatId', chatId || '');
-                        formData.append('audio', audioBlob, 'voice.webm');
-                        try {
-                          const res = await fetch('/api/messages/voice-upload', {
-                            method: 'POST',
-                            credentials: 'include',
-                            body: formData,
-                          });
-                          if (!res.ok) {
-                            const txt = await res.text();
-                            // mark temp message as failed
-                            setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _failed: true } : m));
-                            try { URL.revokeObjectURL(tempObjUrl); } catch (e) {}
-                            alert('Ошибка отправки голосового: ' + txt);
-                          } else {
-                            const data = await res.json();
-                            if (data && data.message && data.message.id) {
-                              // replace temp message with server message
-                              setMessages(prev => prev.map(m => m.id === tempId ? {
-                                ...m,
-                                id: data.message.id,
-                                createdAt: data.message.createdAt || m.createdAt,
-                                audioUrl: data.audioUrl,
-                                _persisted: data.persisted !== false,
-                              } : m));
-                              try { URL.revokeObjectURL(tempObjUrl); } catch (e) {}
-                            } else {
-                              // no message returned: mark failed
+                          const formData = new FormData();
+                          formData.append('chatId', chatId || '');
+                          formData.append('audio', audioBlob, 'voice.webm');
+                          console.log('[VOICE] FormData prepared, sending to /api/messages/voice-upload');
+                          
+                          try {
+                            const res = await fetch('/api/messages/voice-upload', {
+                              method: 'POST',
+                              credentials: 'include',
+                              body: formData,
+                            });
+                            console.log('[VOICE] Response status:', res.status);
+                            
+                            if (!res.ok) {
+                              const txt = await res.text();
+                              console.log('[VOICE] Error response:', txt);
+                              // mark temp message as failed
                               setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _failed: true } : m));
                               try { URL.revokeObjectURL(tempObjUrl); } catch (e) {}
+                              alert('Ошибка отправки голосового: ' + txt);
+                            } else {
+                              const data = await res.json();
+                              console.log('[VOICE] Success response:', data);
+                              if (data && data.message && data.message.id) {
+                                // replace temp message with server message
+                                setMessages(prev => prev.map(m => m.id === tempId ? {
+                                  ...m,
+                                  id: data.message.id,
+                                  createdAt: data.message.createdAt || m.createdAt,
+                                  audioUrl: data.audioUrl,
+                                  _persisted: data.persisted !== false,
+                                } : m));
+                                try { URL.revokeObjectURL(tempObjUrl); } catch (e) {}
+                              } else {
+                                console.log('[VOICE] No message returned');
+                                // no message returned: mark failed
+                                setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _failed: true } : m));
+                                try { URL.revokeObjectURL(tempObjUrl); } catch (e) {}
+                              }
                             }
+                          } catch (err) {
+                            console.log('[VOICE] Fetch error:', err);
+                            setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _failed: true } : m));
+                            alert('Ошибка отправки голосового: ' + err);
                           }
-                        } catch (err) {
-                          setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _failed: true } : m));
-                          alert('Ошибка отправки голосового: ' + err);
+                        };
+                        
+                        setMediaRecorder(recorder);
+                        setIsRecording(true);
+                        setRecordTime(0);
+                        if (recordInterval.current) clearInterval(recordInterval.current);
+                        recordInterval.current = setInterval(() => setRecordTime(t => t + 1), 1000);
+                        recorder.start();
+                      } catch (error: any) {
+                        if (error.name === 'NotAllowedError') {
+                          alert('Microphone access denied. Please enable microphone permissions in browser settings.');
+                        } else if (error.name === 'NotFoundError') {
+                          alert('No microphone found. Please connect a microphone.');
+                        } else {
+                          alert('Error accessing microphone: ' + error.message);
                         }
-                      };
-                      recorder.start();
+                        return;
+                      }
                     } else {
-                      // Остановить запись и отправить
+                      // Остановить запись (tracks будут остановлены в onstop)
                       if (mediaRecorder && isRecording) {
-                        // Минимальная длительность
-                        // (Проверка минимальной длительности аудио отключена)
                         mediaRecorder.stop();
-                        mediaRecorder.stream.getTracks().forEach(track => track.stop());
                       }
                     }
                   }}

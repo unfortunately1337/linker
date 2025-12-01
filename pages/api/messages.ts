@@ -14,16 +14,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     user = await prisma.user.findUnique({ where: { login: session.user.name } });
   }
   if (!session || !user) {
-    // Debug helper: log cookies/headers to help diagnose missing session in production/dev
-    try {
-      console.warn('[MESSAGES API] Unauthorized request — session missing. Request cookies/header:', {
-        cookieHeader: req.headers.cookie || null,
-        userAgent: req.headers['user-agent'] || null,
-        host: req.headers.host || null,
-      });
-    } catch (e) {
-      console.warn('[MESSAGES API] Failed to log headers for unauthorized request', e);
-    }
+    console.warn('[MESSAGES API] Unauthorized request — session missing');
     return res.status(401).json({ error: 'Unauthorized' });
   }
 

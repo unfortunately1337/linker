@@ -9,6 +9,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../auth/[...nextauth]';
 // No encryption for video files — store raw files under pages/api/.private_media/video
 import { pusher } from '../../../lib/pusher';
+import { uploadLimiter } from '../../../lib/rateLimiter';
 
 export const config = {
   api: {
@@ -55,7 +56,7 @@ function parseForm(req: NextApiRequest): Promise<{ fields: any; files: any }> {
   });
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function videoUploadHandler(req: NextApiRequest, res: NextApiResponse) {
   // CORS: prefer echoing request origin when present so credentialed requests work.
   const origin = (req.headers.origin as string) || '';
   if (origin) res.setHeader('Access-Control-Allow-Origin', origin);
@@ -81,8 +82,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       let video = files.video;
       if (Array.isArray(video)) video = video[0];
       if (!video) {
-        res.status(400).json({ error: 'No video file', fields, files });
+        res.status(400).json({ error: 'No video file' });
         return;
+      }
+
+      const MAX_VIDEO_SIZE = 100 * 1024 * 1024; // 100 MB
+      const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/quicktime'];
+
+      // Validate file size
+      if (video.size && video.size > MAX_VIDEO_SIZE) {
+        return res.status(413).json({
+          error: 'Video file too large',
+          maxSize: '100 MB'
+        });
+      }
+
+      // Validate MIME type
+      if (video.mimetype && !ALLOWED_VIDEO_TYPES.includes(video.mimetype)) {
+        return res.status(400).json({
+          error: 'Invalid video format',
+          allowed: ALLOWED_VIDEO_TYPES
+        });
       }
 
       let chatId = fields.chatId;
@@ -111,7 +131,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const filePath = path.join(uploadDir, fileName);
 
         const tmpPath = (video as any)?.filepath || (video as any)?.path || (video as any)?.tempFilePath || (video as any)?.file?.path;
-        console.log('[VIDEO UPLOAD] tmpPath candidates, using:', tmpPath);
         if (!tmpPath) {
           throw new Error('Temporary upload path is missing on parsed file');
         }
@@ -239,4 +258,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   } else {
     res.status(405).json({ error: 'Method not allowed' });
   }
+}
+
+export default function handler(req: NextApiRequest, res: NextApiResponse) {
+  return uploadLimiter(req, res, () => videoUploadHandler(req, res));
 }

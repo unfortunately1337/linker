@@ -8,9 +8,11 @@ type Props = {
 
 export default function SettingsModal({ open, onClose }: Props) {
   const DEFAULT = '#229ed9';
+  const DEFAULT_FONT_SIZE = 15;
   const [color, setColor] = useState<string>(DEFAULT);
   const [tempColor, setTempColor] = useState<string>(DEFAULT);
   const [showPopover, setShowPopover] = useState<boolean>(false);
+  const [fontSize, setFontSize] = useState<number>(DEFAULT_FONT_SIZE);
   // HSV state for custom picker
   const [hsv, setHsv] = useState<{ h: number; s: number; v: number }>({ h: 200, s: 0.6, v: 0.86 });
   const svRef = useRef<HTMLDivElement | null>(null);
@@ -27,6 +29,12 @@ export default function SettingsModal({ open, onClose }: Props) {
         setColor(DEFAULT);
         setTempColor(DEFAULT);
       }
+      const storedFontSize = typeof window !== 'undefined' ? localStorage.getItem('chatFontSize') : null;
+      if (storedFontSize) {
+        setFontSize(parseInt(storedFontSize, 10));
+      } else {
+        setFontSize(DEFAULT_FONT_SIZE);
+      }
     } catch (e) {}
   }, [open]);
 
@@ -42,6 +50,17 @@ export default function SettingsModal({ open, onClose }: Props) {
     setTempColor(c);
   };
 
+  const applyFontSize = (size: number) => {
+    try {
+      localStorage.setItem('chatFontSize', size.toString());
+    } catch (e) {}
+    setFontSize(size);
+    // Notify other components
+    try {
+      window.dispatchEvent(new CustomEvent('chat-font-size-changed', { detail: size }));
+    } catch (e) {}
+  };
+
   const resetColor = () => {
     applyColor(DEFAULT);
   };
@@ -55,6 +74,10 @@ export default function SettingsModal({ open, onClose }: Props) {
         // light shadow tint
         document.documentElement.style.setProperty('--chat-accent-shadow', initial + '33');
       }
+      const initialFontSize = typeof window !== 'undefined' ? localStorage.getItem('chatFontSize') : null;
+      if (initialFontSize) {
+        document.documentElement.style.setProperty('--chat-font-size', initialFontSize + 'px');
+      }
     } catch (e) {}
   }, []);
 
@@ -65,8 +88,11 @@ export default function SettingsModal({ open, onClose }: Props) {
         document.documentElement.style.setProperty('--chat-accent', color);
         document.documentElement.style.setProperty('--chat-accent-shadow', color + '33');
       }
+      if (fontSize) {
+        document.documentElement.style.setProperty('--chat-font-size', fontSize + 'px');
+      }
     } catch (e) {}
-  }, [color]);
+  }, [color, fontSize]);
 
   // sync hsv when tempColor changes (convert hex -> hsv)
   useEffect(() => {
@@ -168,8 +194,6 @@ export default function SettingsModal({ open, onClose }: Props) {
 
               <div className={styles.colorActions}>
                 <div className={styles.colorActionsTop}>
-                  <button onClick={() => { applyColor(tempColor); onClose(); }} className={`${styles.btn} ${styles.btnPrimary}`}>Сохранить</button>
-                  <button onClick={() => { setTempColor(color); onClose(); }} className={`${styles.btn} ${styles.btnGhost}`}>Отмена</button>
                 </div>
                 <div className={styles.colorActionsBottom}>
                   <button onClick={resetColor} className={`${styles.btn} ${styles.btnReset}`} title="Сбросить цвет">Сброс</button>
@@ -239,7 +263,6 @@ export default function SettingsModal({ open, onClose }: Props) {
 
                         <div className={styles.popoverActions}>
                           <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={() => { applyColor(tempColor); setShowPopover(false); }}>Готово</button>
-                          <button className={`${styles.btn} ${styles.btnGhost}`} onClick={() => { setTempColor(color); setShowPopover(false); }}>Отмена</button>
                         </div>
                       </div>
                     </div>
@@ -247,6 +270,37 @@ export default function SettingsModal({ open, onClose }: Props) {
                 )}
             </div>
           </div>
+        </div>
+
+        <div className={styles.section}>
+          <div className={styles.label}>Размер шрифта</div>
+          <div className={styles.fontSizeControl}>
+            <div className={styles.fontSizeSliderWrapper}>
+              <input 
+                type="range" 
+                min="12" 
+                max="20" 
+                value={fontSize} 
+                onChange={(e) => applyFontSize(parseInt(e.target.value, 10))}
+                className={styles.fontSizeSlider}
+              />
+            </div>
+            <div className={styles.fontSizeValue}>{fontSize}px</div>
+            <button 
+              onClick={() => applyFontSize(DEFAULT_FONT_SIZE)} 
+              className={`${styles.btn} ${styles.btnReset}`}
+              title="Сбросить размер"
+            >
+              Сброс
+            </button>
+          </div>
+          <div className={styles.fontSizePreview} style={{ fontSize: `${fontSize}px` }}>
+            Пример текста сообщения
+          </div>
+        </div>
+
+        <div className={styles.modalFooter}>
+          <button onClick={onClose} className={`${styles.btn} ${styles.btnPrimary}`}>Сохранить</button>
         </div>
       </div>
     </div>

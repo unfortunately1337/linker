@@ -202,6 +202,18 @@ const ChatWithFriend: React.FC = () => {
     return () => window.removeEventListener('chat-color-changed', onColor as EventListener);
   }, []);
 
+  // Listen for font size changes from SettingsModal
+  const [fontSize, setFontSize] = useState<number>(15);
+  useEffect(() => {
+    try {
+      const stored = typeof window !== 'undefined' ? localStorage.getItem('chatFontSize') : null;
+      if (stored) setFontSize(parseInt(stored, 10));
+    } catch (e) {}
+    const onFontSize = (e: any) => { try { setFontSize(e?.detail || 15); } catch (err) {} };
+    window.addEventListener('chat-font-size-changed', onFontSize as EventListener);
+    return () => window.removeEventListener('chat-font-size-changed', onFontSize as EventListener);
+  }, []);
+
   // --- Добавить недостающие переменные и хуки ---
   const [userId, setUserId] = useState<string | null>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
@@ -1044,8 +1056,8 @@ const ChatWithFriend: React.FC = () => {
     : { fontWeight: 600, fontSize: '17px', color: '#e3e8f0', display: 'flex', alignItems: 'center', gap: '6px' };
   const ownBg = messageColor ? `linear-gradient(90deg, ${messageColor} 60%, #1e2a3a 100%)` : 'linear-gradient(90deg,#229ed9 60%,#1e2a3a 100%)';
   const messageStyle = isMobile
-  ? { background: ownBg, color: '#fff', padding: '10px 18px', borderRadius: '12px', display: 'inline-block', boxShadow: '0 2px 6px #2222', fontSize: '16px', maxWidth: '80vw', wordBreak: 'break-word' as const, position: 'relative' as 'relative' }
-  : { background: ownBg, color: '#fff', padding: '7px 14px', borderRadius: '9px', display: 'inline-block', boxShadow: '0 2px 6px #2222', fontSize: '14px', position: 'relative' as 'relative' };
+  ? { background: ownBg, color: '#fff', padding: '10px 18px', borderRadius: '12px', display: 'inline-block', boxShadow: '0 2px 6px #2222', fontSize: fontSize + 'px', maxWidth: '80vw', wordBreak: 'break-word' as const, position: 'relative' as 'relative' }
+  : { background: ownBg, color: '#fff', padding: '7px 14px', borderRadius: '9px', display: 'inline-block', boxShadow: '0 2px 6px #2222', fontSize: fontSize + 'px', position: 'relative' as 'relative' };
   const inputStyle = isMobile
     ? { flex: 1, padding: '14px 16px', borderRadius: '12px', border: 'none', background: '#18191c', color: '#fff', fontSize: '16px', boxShadow: '0 2px 6px #2222', outline: 'none', minWidth: '0' }
     : { flex: 1, padding: '9px 12px', borderRadius: '9px', border: 'none', background: '#18191c', color: '#fff', fontSize: '14px', boxShadow: '0 2px 6px #2222', outline: 'none' };
@@ -1683,27 +1695,38 @@ const ChatWithFriend: React.FC = () => {
                 onClick={async () => {
                   if (!isRecording) {
                     // Начать запись
-                    if (!navigator.mediaDevices) return;
-                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    // Используем audio/webm если поддерживается
-                    let mimeType = 'audio/webm';
-                    if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = '';
-                    const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
-                    setMediaRecorder(recorder);
-                    audioChunksRef.current = [];
-                    setIsRecording(true);
-                    setRecordTime(0);
-                    if (recordInterval.current) clearInterval(recordInterval.current);
-                    recordInterval.current = setInterval(() => setRecordTime(t => t + 1), 1000);
-                    recorder.ondataavailable = (e) => {
-                      audioChunksRef.current.push(e.data);
-                    };
-                    recorder.onstop = async () => {
-                      if (recordInterval.current) clearInterval(recordInterval.current);
-                      setIsRecording(false);
-                      setRecordTime(0);
+                    try {
+                      if (!navigator.mediaDevices) {
+                        alert('Your browser does not support audio recording');
+                        return;
+                      }
+                      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                      // Используем audio/webm если поддерживается
+                      let mimeType = 'audio/webm';
+                      if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = '';
+                      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+                      
+                      audioChunksRef.current = [];
+                      
+                      recorder.ondataavailable = (e) => {
+                        audioChunksRef.current.push(e.data);
+                      };
+                      
+                      recorder.onstop = async () => {
+                        if (recordInterval.current) clearInterval(recordInterval.current);
+                        setIsRecording(false);
+                        setRecordTime(0);
+                        
+                        console.log('[VOICE] Recording stopped, chunks:', audioChunksRef.current.length);
+                        
                         const audioBlob = new Blob(audioChunksRef.current, { type: mimeType || 'audio/webm' });
+                        console.log('[VOICE] Blob created, size:', audioBlob.size);
                         audioChunksRef.current = [];
+                        
+                        // Stop all tracks after data is collected
+                        stream.getTracks().forEach(track => track.stop());
+                        console.log('[VOICE] Tracks stopped');
+                        
                         // Optimistic UI: create a temporary message so user sees upload in progress
                         const tempId = 'temp-audio-' + Date.now();
                         const tempObjUrl = URL.createObjectURL(audioBlob);
@@ -1719,24 +1742,31 @@ const ChatWithFriend: React.FC = () => {
                           _failed: false,
                         };
                         setMessages(prev => [...prev, tempMsg]);
+                        console.log('[VOICE] Temp message added');
 
-                      const formData = new FormData();
-                      formData.append('chatId', chatId || '');
-                      formData.append('audio', audioBlob, 'voice.webm');
-                      try {
-                        const res = await fetch('/api/messages/voice-upload', {
-                          method: 'POST',
-                          credentials: 'include',
-                          body: formData,
-                        });
+                        const formData = new FormData();
+                        formData.append('chatId', chatId || '');
+                        formData.append('audio', audioBlob, 'voice.webm');
+                        console.log('[VOICE] FormData prepared, sending to /api/messages/voice-upload');
+                        
+                        try {
+                          const res = await fetch('/api/messages/voice-upload', {
+                            method: 'POST',
+                            credentials: 'include',
+                            body: formData,
+                          });
+                          console.log('[VOICE] Response status:', res.status);
+                          
                           if (!res.ok) {
                             const txt = await res.text();
+                            console.log('[VOICE] Error response:', txt);
                             // mark temp message as failed
                             setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _failed: true } : m));
                             try { URL.revokeObjectURL(tempObjUrl); } catch (e) {}
                             alert('Ошибка отправки голосового: ' + txt);
                           } else {
                             const data = await res.json();
+                            console.log('[VOICE] Success response:', data);
                             if (data && data.message && data.message.id) {
                               // replace temp message with server message
                               setMessages(prev => prev.map(m => m.id === tempId ? {
@@ -1748,24 +1778,39 @@ const ChatWithFriend: React.FC = () => {
                               } : m));
                               try { URL.revokeObjectURL(tempObjUrl); } catch (e) {}
                             } else {
+                              console.log('[VOICE] No message returned');
                               // no message returned: mark failed
                               setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _failed: true } : m));
                               try { URL.revokeObjectURL(tempObjUrl); } catch (e) {}
                             }
                           }
-                      } catch (err) {
-                        setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _failed: true } : m));
-                        alert('Ошибка отправки голосового: ' + err);
+                        } catch (err) {
+                          console.log('[VOICE] Fetch error:', err);
+                          setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _failed: true } : m));
+                          alert('Ошибка отправки голосового: ' + err);
+                        }
+                      };
+                      
+                      setMediaRecorder(recorder);
+                      setIsRecording(true);
+                      setRecordTime(0);
+                      if (recordInterval.current) clearInterval(recordInterval.current);
+                      recordInterval.current = setInterval(() => setRecordTime(t => t + 1), 1000);
+                      recorder.start();
+                    } catch (error: any) {
+                      if (error.name === 'NotAllowedError') {
+                        alert('Microphone access denied. Please enable microphone permissions in browser settings.');
+                      } else if (error.name === 'NotFoundError') {
+                        alert('No microphone found. Please connect a microphone.');
+                      } else {
+                        alert('Error accessing microphone: ' + error.message);
                       }
-                    };
-                    recorder.start();
+                      return;
+                    }
                   } else {
-                    // Остановить запись и отправить
+                    // Остановить запись (tracks будут остановлены в onstop)
                     if (mediaRecorder && isRecording) {
-                      // Минимальная длительность
-                      // (Проверка минимальной длительности аудио отключена)
                       mediaRecorder.stop();
-                      mediaRecorder.stream.getTracks().forEach(track => track.stop());
                     }
                   }
                 }}

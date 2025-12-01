@@ -7,6 +7,7 @@ import prisma from '../../../lib/prisma';
 import { randomUUID } from 'crypto';
 import fs from 'fs';
 import formidable, { IncomingForm } from 'formidable';
+import { uploadLimiter } from '../../../lib/rateLimiter';
 
 // --- FIXED parseForm ---
 async function parseForm(req: any): Promise<{ fields: any; files: any }> {
@@ -24,7 +25,7 @@ async function parseForm(req: any): Promise<{ fields: any; files: any }> {
   });
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export async function postCreateHandler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST')
     return res.status(405).json({ error: 'Method not allowed' });
 
@@ -120,8 +121,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
           try {
             if (optimized) {
-              // Ensure Buffer type is used for Prisma Bytes column (Prisma expects Buffer)
-              const dataForPrisma = optimized instanceof Buffer ? optimized : Buffer.from(optimized as Uint8Array);
+              const dataForPrisma =
+                optimized instanceof Buffer ? optimized : Buffer.from(optimized as Uint8Array);
 
               const media = await prisma.media.create({
                 data: {
@@ -152,7 +153,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
-  if (mediaId && typeof mediaId === 'string') {
+    // existing mediaId
+    if (mediaId && typeof mediaId === 'string') {
       try {
         const exists = await prisma.media.findUnique({ where: { id: mediaId } });
         if (exists) mediaConnect = { connect: { id: mediaId } };
@@ -169,7 +171,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (description) createData.description = description;
       if (mediaConnect) createData.media = mediaConnect;
 
-        post = await prisma.post.create({
+      post = await prisma.post.create({
         data: createData,
         select: {
           id: true,
@@ -264,6 +266,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     return res.status(200).json({ post });
   } catch (e) {
-    return res.status(500).json({ error: 'Internal server error', detail: String((e as any)?.message || e) });
+    return res.status(500).json({
+      error: 'Internal server error',
+      detail: String((e as any)?.message || e),
+    });
   }
+}
+
+// --- SINGLE DEFAULT EXPORT ---
+export default function handler(req: NextApiRequest, res: NextApiResponse) {
+  return uploadLimiter(req, res, () => postCreateHandler(req, res));
 }
