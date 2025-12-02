@@ -1294,3 +1294,62 @@
     font-size: 8px;
   }
 }
+
+/* Mobile version - single column layout */
+@media (max-width: 600px) {
+  .modal {
+    grid-template-columns: 1fr;
+    height: auto;
+    max-height: 90vh;
+  }
+
+  .sidebar {
+    border-right: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    padding: 16px 0;
+    margin-bottom: 0;
+  }
+
+  .menu {
+    display: none !important;
+  }
+
+  .content {
+    width: 100% !important;
+    border-left: none !important;
+    display: block !important;
+    overflow-y: auto;
+  }
+
+  /* Show all sections on mobile */
+  .content > * {
+    display: block !important;
+  }
+
+  .contentHeader {
+    padding: 16px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    margin-bottom: 14px;
+  }
+
+  .contentBody {
+    padding: 0 14px 14px 14px;
+  }
+
+  .section {
+    margin-bottom: 12px;
+  }
+
+  .sectionTitle {
+    font-size: 13px;
+    margin-bottom: 8px;
+  }
+
+  .card {
+    padding: 12px;
+  }
+
+  .cardLabel {
+    font-size: 12px;
+  }
+}

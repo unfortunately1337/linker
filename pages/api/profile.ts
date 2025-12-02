@@ -68,7 +68,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             link: friend.link || null,
             avatar: friend.avatar,
             role: friend.role,
-            status: friendStatus
+            status: friendStatus,
+            phoneNumber: (friend as any).phoneNumber || "0",
           };
         })
       );
@@ -136,6 +137,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         role: (user as any).role || null,
         description: (user as any).description || null,
         backgroundUrl: (user as any).backgroundUrl || null,
+        phoneNumber: (user as any).phoneNumber || "0",
         bgOpacity: (user as any).bgOpacity ?? null,
         favoriteTrackUrl: (user as any).favoriteTrackUrl ?? null,
         createdAt: (user as any).createdAt,

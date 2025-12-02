@@ -390,3 +390,50 @@ input, textarea { font-size: 16px; }
 }
 /* NOTE: chat-btn-circle must remain visible for message controls (play/pause/send).
    Emergency global hide removed to avoid hiding actionable buttons in chats. */
+
+/* Floating Create Button Styles */
+.floatingCreate {
+  position: fixed;
+  bottom: 32px;
+  right: 32px;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #4a90e2 0%, #2563eb 100%);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font-size: 32px;
+  font-weight: 300;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 32px rgba(74, 144, 226, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  z-index: 50;
+  outline: none;
+  backdrop-filter: blur(10px);
+}
+
+.floatingCreate:hover {
+  transform: translateY(-6px) scale(1.05);
+  box-shadow: 0 12px 40px rgba(74, 144, 226, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  background: linear-gradient(135deg, #5ba3f5 0%, #3b82f6 100%);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.floatingCreate:active {
+  transform: translateY(-2px) scale(0.98);
+  box-shadow: 0 4px 16px rgba(74, 144, 226, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+@media (max-width: 600px) {
+  .floatingCreate {
+    bottom: 24px;
+    right: 24px;
+    width: 52px;
+    height: 52px;
+    font-size: 28px;
+    border-radius: 14px;
+  }
+}

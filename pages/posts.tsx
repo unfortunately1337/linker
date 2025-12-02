@@ -338,57 +338,103 @@ export default function PostsPage() {
 
         {openCreate && (
           <ModalPortal>
-            <div className="modalBackdrop" onClick={() => setOpenCreate(false)}>
-              <div className="modalDialog" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}>
-              <div className="modalHeader">
-                <div style={{ fontWeight: 700, color: '#fff', fontSize: 18 }}>Создать пост</div>
-                <button className="closeBtn" onClick={() => setOpenCreate(false)} aria-label="Закрыть">✕</button>
-              </div>
-              <form className="postForm" onSubmit={(e)=>{ e.preventDefault(); void handleUploadAndCreate(); }}>
-                <input ref={titleRef} className="input title" placeholder="Заголовок" value={title} onChange={e=>setTitle(e.target.value)} />
-                <input className="input desc" placeholder="Краткое описание" value={description} onChange={e=>setDescription(e.target.value)} />
-                {/* Full content removed: only description is used */}
-                <div className="row">
-                  <label className="fileBtn" title="Прикрепить файл" aria-label="Прикрепить файл" tabIndex={0} onKeyDown={(e)=>{ if (e.key === 'Enter' || e.key === ' ') { const input = (e.currentTarget as HTMLElement).querySelector('input[type="file"]') as HTMLElement | null; input?.click(); } }}>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden focusable="false">
-                      <path d="M21 12.5V6.5a4.5 4.5 0 0 0-9 0v6a3.5 3.5 0 0 0 7 0V7" stroke="#fff" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
-                      <path d="M7 12.5v6a4.5 4.5 0 0 0 9 0v-6" stroke="#fff" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+            <div className="createPostBackdrop" onClick={() => setOpenCreate(false)}>
+              <div className="createPostModal" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}>
+                <div className="createPostHeader">
+                  <div className="createPostTitle">Создать пост</div>
+                  <button className="createPostCloseBtn" onClick={() => setOpenCreate(false)} aria-label="Закрыть">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                     </svg>
-                    <input className="fileInputHidden" type="file" accept="image/*" onChange={e=>setFile(e.target.files ? e.target.files[0] : null)} />
-                  </label>
-                  <button type="submit" className={`publishBtn ${publishAnim === 'success' ? 'success' : ''}`} disabled={creating} aria-label="Поделиться">
-                    {creating ? (
-                      <svg className="btnSpinner" width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
-                        <circle cx="12" cy="12" r="9" stroke="#cfe9f7" strokeOpacity="0.18" strokeWidth="2" />
-                        <path d="M4 12a8 8 0 0 0 16 0" stroke="#cfe9f7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" transform="rotate(45 12 12)"/>
-                      </svg>
-                    ) : publishAnim === 'success' ? (
-                      <svg className="successCheck" width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden focusable="false">
-                        <path d="M20 6L9 17l-5-5" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    ) : (
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden focusable="false">
-                        <path d="M7 17L17 7" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-                        <path d="M7 7h10v10" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    )}
                   </button>
                 </div>
-                {file && <div className="fileName">Выбран: {file.name}</div>}
-              </form>
-              {creating && (
-                <div className="modalOverlay" role="status" aria-live="polite">
-                  <div className="publishingRow">
-                    <svg className="publishingSpinner" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false">
-                      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.6" strokeOpacity="0.12" fill="none" />
-                      <path d="M4 12a8 8 0 0 0 16 0" stroke="#cfe9f7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" transform="rotate(45 12 12)"/>
-                    </svg>
-                    <div className="publishingText">Пост публикуется...</div>
+                
+                <form className="createPostForm" onSubmit={(e)=>{ e.preventDefault(); void handleUploadAndCreate(); }}>
+                  <div className="formGroup">
+                    <label className="formLabel">Заголовок</label>
+                    <input 
+                      ref={titleRef} 
+                      className="createPostInput" 
+                      placeholder="Введите заголовок вашего поста" 
+                      value={title} 
+                      onChange={e=>setTitle(e.target.value)} 
+                      maxLength={100}
+                    />
                   </div>
-                </div>
-              )}
+
+                  <div className="formGroup">
+                    <label className="formLabel">Описание</label>
+                    <textarea 
+                      className="createPostTextarea" 
+                      placeholder="Расскажите больше о вашем посте..." 
+                      value={description} 
+                      onChange={e=>setDescription(e.target.value)}
+                      maxLength={500}
+                      rows={4}
+                    />
+                    <div className="charCount">{description.length}/500</div>
+                  </div>
+
+                  <div className="formGroup">
+                    <label className="formLabel">Медиа</label>
+                    <label className="fileUploadBox">
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        onChange={e=>setFile(e.target.files ? e.target.files[0] : null)}
+                        className="fileInputHidden"
+                      />
+                      <div className="fileUploadContent">
+                        <div className="uploadText">Нажмите для загрузки фото</div>
+                        <div className="uploadHint">PNG, JPG до 10MB</div>
+                      </div>
+                    </label>
+                    {file && <div className="fileStatusText fileSelected">{file.name}</div>}
+                  </div>
+
+                  <div className="createPostFooter">
+                    <button 
+                      type="button" 
+                      className="createPostCancelBtn" 
+                      onClick={() => setOpenCreate(false)}
+                      disabled={creating}
+                    >
+                      Отмена
+                    </button>
+                    <button 
+                      type="submit" 
+                      className={`createPostPublishBtn ${publishAnim === 'success' ? 'success' : ''}`} 
+                      disabled={creating}
+                    >
+                      {creating ? (
+                        <svg className="btnSpinner" width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+                          <circle cx="12" cy="12" r="9" stroke="currentColor" strokeOpacity="0.3" strokeWidth="2" />
+                          <path d="M4 12a8 8 0 0 0 16 0" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" transform="rotate(45 12 12)"/>
+                        </svg>
+                      ) : publishAnim === 'success' ? (
+                        <svg className="successCheck" width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden focusable="false">
+                          <path d="M20 6L9 17l-5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      ) : (
+                        <span>Опубликовать</span>
+                      )}
+                    </button>
+                  </div>
+                </form>
+
+                {creating && (
+                  <div className="createPostOverlay" role="status" aria-live="polite">
+                    <div className="publishingRow">
+                      <svg className="publishingSpinner" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false">
+                        <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.6" strokeOpacity="0.2" fill="none" />
+                        <path d="M4 12a8 8 0 0 0 16 0" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" transform="rotate(45 12 12)"/>
+                      </svg>
+                      <div className="publishingText">Пост публикуется...</div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
           </ModalPortal>
         )}
 
@@ -637,51 +683,430 @@ export default function PostsPage() {
       
       <style jsx>{`
         .createWrap{ width:100%; display:flex; justify-content:center; margin-top:8px }
-        .modalBackdrop{ position:fixed; inset:0; background: rgba(3,6,7,0.6); display:grid; place-items:center; z-index: 1200 }
-        /* Center modal dialog using grid centering and keep it within viewport. Use relative positioning on the dialog and rely on the fixed backdrop grid to center it. */
-        .modalDialog{ position: relative; width: 520px; max-width: calc(100% - 40px); background:#0f1216; border-radius:12px; padding:18px; border: none; overflow: hidden; box-shadow: 0 12px 40px rgba(0,0,0,0.7); max-height: calc(100vh - 80px); margin: 0; z-index:1250; }
-        .modalHeader{ display:flex; align-items:center; justify-content:space-between; margin-bottom:12px }
-        .closeBtn{ background:transparent; border: none; color:#9fb0bf; font-size:18px; cursor:pointer }
-        .postForm{
-          background:#0f1214; padding:20px; border-radius:10px; max-width:920px; width:100%; box-shadow: none; box-sizing: border-box; overflow: hidden; margin: 0;
+        .createPostBackdrop{ 
+          position: fixed; 
+          inset: 0; 
+          background: rgba(3, 6, 7, 0.7); 
+          backdrop-filter: blur(4px);
+          display: grid; 
+          place-items: center; 
+          z-index: 1200;
+          animation: backdropFadeIn 200ms ease-out;
         }
-        .fileBtn{ display:inline-flex; align-items:center; justify-content:center; width:48px; height:48px; border-radius:50%; background: linear-gradient(180deg,#161819,#1f2326); border:1px solid rgba(255,255,255,0.04); color:#fff; cursor:pointer; transition: transform .12s ease, box-shadow .12s ease }
-        .fileBtn svg{ opacity: 0.95; display:block }
-        .fileBtnText{ display:none }
-        .postTitle{ font-weight:800; color:#fff; margin-top:10px; font-size:16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
-        .fileBtn:hover{ transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.5) }
-        .fileBtn:focus{ outline:none; box-shadow: 0 0 0 4px rgba(79,195,247,0.08) }
-        .publishBtn:hover{ transform: translateY(-3px); box-shadow: 0 14px 36px rgba(34,160,220,0.25) }
-        .publishBtn:focus{ outline:none; box-shadow: 0 0 0 6px rgba(79,195,247,0.08) }
-        .modalDialog .postForm{ overflow-y: auto; max-height: calc(100vh - 160px); }
-        .modalOverlay{ position: absolute; inset: 0; display:flex; align-items:center; justify-content:center; background: rgba(3,6,7,0.6); border-radius:12px; z-index: 1280 }
-        .publishingRow{ display:inline-flex; gap:10px; align-items:center; justify-content:center; background: transparent; padding:10px 18px; border-radius:12px; box-shadow: 0 8px 20px rgba(0,0,0,0.4); }
-        .publishingSpinner{ color:#cfe9f7; width:22px; height:22px; animation: spin 1s linear infinite }
-        .publishingText{ color:#fff; font-weight:700; font-size:14px }
-        /* publishBtnText/publishBtnLabel removed: label is shown in overlay only */
-        .btnSpinner{ width:14px; height:14px; animation: spin 1s linear infinite }
-        .input{ width:100%; padding:12px 14px; border-radius:10px; border:1px solid #222; background:#0b0d0e; color:#fff; margin-top:10px; outline:none }
-        .input.title{ font-size:18px; font-weight:700 }
-        .input.desc{ font-size:14px; color:#ddd }
-        .textarea{ width:100%; min-height:160px; margin-top:10px; padding:12px; border-radius:10px; border:1px solid #222; background:#0b0d0e; color:#fff; resize:vertical; outline:none }
-        .row{ display:flex; gap:12px; align-items:center; margin-top:12px }
-        /* legacy fileBtn: removed */
-        .input:focus, .textarea:focus { outline: none; box-shadow: 0 0 0 4px rgba(34,158,217,0.06); }
-        .input{box-sizing: border-box}
-        .fileInputHidden{ display:none }
-        .publishBtn{ background: linear-gradient(90deg,#23a8e3,#1fb6ff); color:#fff; padding:0; width:50px; height:50px; display:inline-flex; align-items:center; justify-content:center; border-radius:50%; border:none; cursor:pointer; font-weight:700; box-shadow: 0 8px 28px rgba(34,160,220,0.18); transition: transform .12s ease, box-shadow .12s ease }
-        .publishBtn:disabled{ opacity:0.6; cursor:default }
-        .publishBtn svg{ transform: translateY(0); }
-        @keyframes spin { to { transform: rotate(360deg) } }
-        .spinner{ animation: spin 1s linear infinite }
-        /* Publish success animation: pulse and checkmark */
-        .publishBtn.success{ background: linear-gradient(90deg,#23a86b,#1fb67f); box-shadow: 0 10px 26px rgba(34,220,120,0.12); animation: publishSuccess 800ms cubic-bezier(.2,.9,.2,1); }
-        .publishBtn.success .successCheck{ transform-origin:center; animation: successCheckBounce 680ms cubic-bezier(.2,.9,.2,1); }
-        @keyframes publishSuccess { 0% { transform: scale(1); } 40% { transform: scale(1.06); } 100% { transform: scale(1); } }
-        @keyframes successCheckBounce { 0%{ transform: scale(.5) rotate(-10deg); opacity:0 } 40%{ transform: scale(1.12) rotate(8deg); opacity:1 } 100%{ transform: scale(1) rotate(0deg); opacity:1 } }
-        .fileName{ margin-top:8px; color:#bfc7cf; font-size:13px }
-        @media (max-width:760px){ .postForm{ padding:14px } }
-        @media (max-width:560px){ .modalDialog{ width: calc(100% - 32px); padding: 14px; } }
+
+        @keyframes backdropFadeIn {
+          from { background-color: rgba(3, 6, 7, 0); backdrop-filter: blur(0px); }
+          to { background-color: rgba(3, 6, 7, 0.7); backdrop-filter: blur(4px); }
+        }
+
+        .createPostModal{ 
+          position: relative;
+          width: 560px;
+          max-width: calc(100% - 32px);
+          background: linear-gradient(135deg, rgba(15, 18, 22, 0.95), rgba(11, 13, 14, 0.95));
+          border: 1px solid rgba(34, 158, 217, 0.15);
+          border-radius: 16px;
+          padding: 28px;
+          overflow: hidden;
+          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), 0 0 1px rgba(34, 158, 217, 0.3) inset;
+          max-height: calc(100vh - 80px);
+          z-index: 1250;
+          animation: modalSlideIn 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        @keyframes modalSlideIn {
+          from { 
+            opacity: 0;
+            transform: scale(0.92) translateY(20px);
+          }
+          to { 
+            opacity: 1;
+            transform: scale(1) translateY(0);
+          }
+        }
+
+        .createPostHeader{
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 24px;
+          padding-bottom: 16px;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .createPostTitle{
+          font-weight: 700;
+          font-size: 20px;
+          color: #fff;
+          background: linear-gradient(90deg, #fff, #e0f4ff);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+        }
+
+        .createPostCloseBtn{
+          background: transparent;
+          border: none;
+          color: #9fb0bf;
+          cursor: pointer;
+          width: 32px;
+          height: 32px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 8px;
+          transition: all 200ms ease;
+          flex-shrink: 0;
+        }
+
+        .createPostCloseBtn:hover{
+          background: rgba(34, 158, 217, 0.1);
+          color: #229ed9;
+        }
+
+        .createPostForm{
+          display: flex;
+          flex-direction: column;
+          gap: 20px;
+          max-height: calc(100vh - 260px);
+          overflow-y: auto;
+          padding-right: 8px;
+        }
+
+        .createPostForm::-webkit-scrollbar {
+          width: 6px;
+        }
+
+        .createPostForm::-webkit-scrollbar-track {
+          background: transparent;
+        }
+
+        .createPostForm::-webkit-scrollbar-thumb {
+          background: rgba(34, 158, 217, 0.3);
+          border-radius: 3px;
+        }
+
+        .createPostForm::-webkit-scrollbar-thumb:hover {
+          background: rgba(34, 158, 217, 0.5);
+        }
+
+        .formGroup{
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+
+        .formLabel{
+          font-size: 14px;
+          font-weight: 600;
+          color: #e0e8f0;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          opacity: 0.9;
+        }
+
+        .createPostInput{
+          width: 100%;
+          padding: 12px 16px;
+          background: rgba(11, 13, 14, 0.8);
+          border: 1px solid rgba(34, 158, 217, 0.2);
+          border-radius: 10px;
+          color: #fff;
+          font-size: 15px;
+          font-family: inherit;
+          outline: none;
+          transition: all 200ms ease;
+          box-sizing: border-box;
+        }
+
+        .createPostInput::placeholder{
+          color: #6f7f8f;
+        }
+
+        .createPostInput:focus{
+          background: rgba(11, 13, 14, 1);
+          border-color: rgba(34, 158, 217, 0.5);
+          box-shadow: 0 0 0 3px rgba(34, 158, 217, 0.1);
+        }
+
+        .createPostTextarea{
+          width: 100%;
+          padding: 12px 16px;
+          background: rgba(11, 13, 14, 0.8);
+          border: 1px solid rgba(34, 158, 217, 0.2);
+          border-radius: 10px;
+          color: #fff;
+          font-size: 14px;
+          font-family: inherit;
+          outline: none;
+          resize: none;
+          transition: all 200ms ease;
+          box-sizing: border-box;
+          line-height: 1.5;
+        }
+
+        .createPostTextarea::placeholder{
+          color: #6f7f8f;
+        }
+
+        .createPostTextarea:focus{
+          background: rgba(11, 13, 14, 1);
+          border-color: rgba(34, 158, 217, 0.5);
+          box-shadow: 0 0 0 3px rgba(34, 158, 217, 0.1);
+        }
+
+        .charCount{
+          font-size: 12px;
+          color: #8b99a6;
+          text-align: right;
+          margin-top: 4px;
+        }
+
+        .fileUploadBox{
+          cursor: pointer;
+          width: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 28px 16px;
+          border: 2px dashed rgba(34, 158, 217, 0.3);
+          border-radius: 12px;
+          background: rgba(34, 158, 217, 0.03);
+          transition: all 200ms ease;
+          color: #9fb0bf;
+          box-sizing: border-box;
+        }
+
+        .fileUploadBox:hover{
+          border-color: rgba(34, 158, 217, 0.6);
+          background: rgba(34, 158, 217, 0.08);
+          color: #229ed9;
+        }
+
+        /* Hide default file input button */
+        .fileUploadBox input[type="file"]::file-selector-button {
+          display: none !important;
+        }
+
+        .fileUploadBox input[type="file"] {
+          position: absolute;
+          opacity: 0;
+          width: 0;
+          height: 0;
+        }
+
+        .fileUploadContent{
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          text-align: center;
+          width: 100%;
+        }
+
+        .fileUploadContent svg{
+          color: inherit;
+        }
+
+        .uploadText{
+          font-weight: 600;
+          font-size: 16px;
+          color: inherit;
+        }
+
+        .uploadHint{
+          font-size: 13px;
+          color: #6f7f8f;
+        }
+
+        .fileSelected{
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          color: #23a86b;
+        }
+
+        .fileSelected svg{
+          flex-shrink: 0;
+        }
+
+        .fileStatusText{
+          font-size: 14px;
+          color: #9fb0bf;
+          margin-top: 12px;
+          padding: 8px 0;
+          text-align: center;
+        }
+
+        .fileStatusText.fileSelected{
+          color: #23a86b;
+          font-weight: 500;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .createPostFooter{
+          display: flex;
+          gap: 12px;
+          margin-top: 28px;
+          padding-top: 20px;
+          border-top: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .createPostCancelBtn{
+          flex: 1;
+          padding: 12px 20px;
+          background: transparent;
+          border: 1px solid rgba(34, 158, 217, 0.3);
+          border-radius: 10px;
+          color: #9fb0bf;
+          font-size: 15px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 200ms ease;
+          outline: none;
+        }
+
+        .createPostCancelBtn:hover:not(:disabled){
+          background: rgba(34, 158, 217, 0.1);
+          border-color: rgba(34, 158, 217, 0.5);
+          color: #229ed9;
+        }
+
+        .createPostCancelBtn:disabled{
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
+        .createPostPublishBtn{
+          flex: 1;
+          padding: 12px 20px;
+          background: linear-gradient(135deg, #229ed9, #1a7fb8);
+          border: 1px solid rgba(34, 158, 217, 0.4);
+          border-radius: 10px;
+          color: #fff;
+          font-size: 15px;
+          font-weight: 600;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          transition: all 200ms ease;
+          outline: none;
+          box-shadow: 0 6px 20px rgba(34, 158, 217, 0.2);
+        }
+
+        .createPostPublishBtn:hover:not(:disabled){
+          background: linear-gradient(135deg, #2ab0e8, #1f8ec8);
+          box-shadow: 0 10px 30px rgba(34, 158, 217, 0.3);
+          transform: translateY(-2px);
+        }
+
+        .createPostPublishBtn:disabled{
+          opacity: 0.7;
+          cursor: not-allowed;
+        }
+
+        .createPostPublishBtn.success{
+          background: linear-gradient(135deg, #23a86b, #1f8f5f);
+          box-shadow: 0 10px 30px rgba(34, 220, 120, 0.25);
+          animation: publishSuccess 800ms cubic-bezier(0.2, 0.9, 0.2, 1);
+        }
+
+        .createPostPublishBtn .successCheck{
+          animation: successCheckBounce 680ms cubic-bezier(0.2, 0.9, 0.2, 1);
+        }
+
+        .createPostOverlay{
+          position: absolute;
+          inset: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: rgba(3, 6, 7, 0.7);
+          border-radius: 16px;
+          z-index: 1280;
+          backdrop-filter: blur(2px);
+        }
+
+        .publishingRow{
+          display: flex;
+          gap: 12px;
+          align-items: center;
+          justify-content: center;
+          background: rgba(34, 158, 217, 0.15);
+          padding: 16px 24px;
+          border-radius: 12px;
+          border: 1px solid rgba(34, 158, 217, 0.3);
+          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+        }
+
+        .publishingSpinner{
+          color: #229ed9;
+          width: 24px;
+          height: 24px;
+          animation: spin 1s linear infinite;
+          flex-shrink: 0;
+        }
+
+        .publishingText{
+          color: #fff;
+          font-weight: 600;
+          font-size: 15px;
+        }
+
+        .btnSpinner{
+          animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+
+        @keyframes publishSuccess {
+          0% { transform: scale(1); }
+          40% { transform: scale(1.06); }
+          100% { transform: scale(1); }
+        }
+
+        @keyframes successCheckBounce {
+          0% { transform: scale(0.5) rotate(-10deg); opacity: 0; }
+          40% { transform: scale(1.12) rotate(8deg); opacity: 1; }
+          100% { transform: scale(1) rotate(0deg); opacity: 1; }
+        }
+
+        @media (max-width: 640px){
+          .createPostModal{
+            width: calc(100% - 24px);
+            padding: 20px;
+          }
+
+          .createPostHeader{
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+          }
+
+          .createPostTitle{
+            font-size: 18px;
+          }
+
+          .createPostForm{
+            gap: 16px;
+          }
+
+          .fileUploadBox{
+            padding: 24px 16px;
+          }
+
+          .createPostFooter{
+            margin-top: 20px;
+            padding-top: 16px;
+          }
+        }
+        
         /* Post cards - Minimal rounded design */
         .postCard{ background:#0b0f12; padding:16px; border-radius:14px; margin-bottom:14px; position:relative; box-shadow: 0 6px 24px rgba(3,6,7,0.5); border: 1px solid rgba(255,255,255,0.02); transition: transform 140ms ease, box-shadow 140ms ease }
         .postCard:hover{ transform: translateY(-6px); box-shadow: 0 18px 48px rgba(0,0,0,0.6) }
