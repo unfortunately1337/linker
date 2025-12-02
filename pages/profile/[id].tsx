@@ -24,6 +24,7 @@ function CopyButton({ idToCopy }: { idToCopy: string }) {
   );
 }
 import { useRouter } from "next/router";
+import { useCall } from '../../components/CallProvider';
 
 export default function UserProfile() {
   const router = useRouter();
@@ -40,6 +41,32 @@ export default function UserProfile() {
   const [isEditingName, setIsEditingName] = useState(false);
   const [editingNameInput, setEditingNameInput] = useState('');
   const [showFriendMenu, setShowFriendMenu] = useState(false);
+  const call = useCall();
+  const [notificationsMuted, setNotificationsMuted] = useState(false);
+
+  useEffect(() => {
+    if (!id) return;
+    try {
+      const v = localStorage.getItem(`friend_mute_${id}`);
+      setNotificationsMuted(v === '1');
+    } catch (e) {}
+  }, [id]);
+
+  const toggleNotifications = () => {
+    try {
+      const next = !notificationsMuted;
+      setNotificationsMuted(next);
+      localStorage.setItem(`friend_mute_${id}`, next ? '1' : '0');
+      setToastTypeLocal('success');
+      setToastMsgLocal(next ? 'Уведомления отключены' : 'Уведомления включены');
+      setShowToastLocal(true);
+    } catch (e) {
+      console.error('toggleNotifications error', e);
+      setToastTypeLocal('error');
+      setToastMsgLocal('Не удалось изменить уведомления');
+      setShowToastLocal(true);
+    }
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -390,16 +417,16 @@ export default function UserProfile() {
                     e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
                     e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
                   }}
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                   </svg>
                   Чат
                 </button>
 
                 <button
-                  onClick={() => alert('Функция в разработке')}
-                  title="Выключить уведомления"
+                  onClick={() => toggleNotifications()}
+                  title={notificationsMuted ? "Включить уведомления" : "Выключить уведомления"}
                   style={{
                     padding: '12px 20px',
                     background: 'rgba(255, 255, 255, 0.05)',
@@ -425,15 +452,19 @@ export default function UserProfile() {
                     e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
                   }}
                 >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M18.8 4C19.6 4.6 20.2 5.2 20.8 6M20 3c1.2 1.2 2.2 2.6 2.9 4.2M2.6 6c-0.4 0.5 0.1 1.3 0.5 1.8l8 11c0.4 0.5 1 0.8 1.5 0.8 0.6 0 1.1-0.3 1.5-0.8l8-11c0.4-0.5 0.9-1.3 0.5-1.8M3 20v0.5c0 1.4 1.1 2.5 2.5 2.5h13c1.4 0 2.5-1.1 2.5-2.5V20" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    <line x1="2" y1="2" x2="22" y2="22" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 2a5 5 0 0 0-5 5v3.1l-1.7 1.7A1 1 0 0 0 6 15h12a1 1 0 0 0 .7-1.7L17 10.1V7a5 5 0 0 0-5-5zm3.5 15.5a3.5 3.5 0 0 1-7 0" />
                   </svg>
                   Звук
                 </button>
 
                 <button
-                  onClick={() => alert('Функция в разработке')}
+                  onClick={() => {
+                    try {
+                      if (!user || !user.id) return;
+                      call.startCall({ type: 'phone', targetId: user.id, targetName: customName || (user.link ? `@${user.link}` : (user.login || user.name)), targetAvatar: user.avatar || undefined });
+                    } catch (e) { console.warn('startCall failed', e); }
+                  }}
                   title="Начать звонок"
                   style={{
                     padding: '12px 20px',
@@ -460,8 +491,8 @@ export default function UserProfile() {
                     e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
                   }}
                 >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M22 16.9v3c0 1.1-.9 2-2 2-7.2 0-13-5.8-13-13 0-1.1.9-2 2-2h3c.6 0 1.1.4 1.3 1l.7 1.6c.2.5.6.9 1.1 1.2l1.3.7c.5.2.9.7 1.1 1.2l.7 1.6c.2.6.7 1 1.3 1h3c1.1 0 2 .9 2 2z" />
                   </svg>
                   Звонок
                 </button>
@@ -494,10 +525,10 @@ export default function UserProfile() {
                     e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
                   }}
                 >
-                  <svg width="5" height="18" viewBox="0 0 5 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <circle cx="2.5" cy="4" r="2.5" fill="currentColor"/>
-                    <circle cx="2.5" cy="12" r="2.5" fill="currentColor"/>
-                    <circle cx="2.5" cy="20" r="2.5" fill="currentColor"/>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="12" cy="6" r="2" />
+                    <circle cx="12" cy="12" r="2" />
+                    <circle cx="12" cy="18" r="2" />
                   </svg>
                   Ещё
                 </button>
@@ -625,7 +656,7 @@ export default function UserProfile() {
           {user.phoneNumber && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, background: 'rgba(255,255,255,0.02)', padding: '8px 12px', borderRadius: 10, color: '#ccc', marginTop: 8 }} className="phone-row">
               <div style={{ fontSize: 13, color: '#bfbfbf', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
-                <span style={{ color: '#9aa0a6', fontWeight: 700, fontSize: 16 }}>Скрыт</span>
+                <span style={{ color: '#9aa0a6', fontWeight: 700, fontSize: 16 }}>{user.phoneNumber === "0" ? "Скрыт" : user.phoneNumber}</span>
                 <span style={{ fontSize: 12, color: '#888' }}>Телефон</span>
               </div>
             </div>

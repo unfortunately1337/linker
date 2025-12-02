@@ -6,35 +6,43 @@ import { forbiddenPasswords } from "./forbidden-passwords";
 function generateAvatarFromLink(link: string): string {
   const letter = link.charAt(0).toUpperCase();
   
-  // Палитра градиентов для аватаров (основной цвет и похожий светлый)
-  const gradients = [
-    { start: "#FF6B6B", end: "#FF8E8E" }, // красный градиент
-    { start: "#4ECDC4", end: "#7EDDD9" }, // бирюзовый градиент
-    { start: "#45B7D1", end: "#7ECDE0" }, // голубой градиент
-    { start: "#FFA07A", end: "#FFBFA0" }, // оранжевый градиент
-    { start: "#98D8C8", end: "#B8E5DD" }, // мятный градиент
-    { start: "#F7DC6F", end: "#FCE5A0" }, // жёлтый градиент
-    { start: "#BB8FCE", end: "#D4B0E0" }, // фиолетовый градиент
-    { start: "#85C1E2", end: "#A8D5F0" }, // небесный градиент
-    { start: "#F8B88B", end: "#FDD0AA" }, // абрикосовый градиент
-    { start: "#82E0AA", end: "#A8F0C8" }  // зелёный градиент
+  // Палитра темных полупрозрачных цветов для аватаров
+  const colors = [
+    "#8B4545", // темно-красный
+    "#800000", // бордо
+    "#406991", // темно-синий
+    "#468DB4", // стальной синий
+    "#B87333", // темно-оранжевый
+    "#BA913B", // тёмный охра
+    "#A9845E", // темно-коричневый
+    "#6A5ACD", // slate blue
+    "#2F4F93", // темно-небесный
+    "#228B22", // темно-зелёный
+    "#556B2F", // оливково-зелёный
+    "#696969", // тёмный серый
+    "#191B70", // полуночный синий
+    "#4B0082", // индиго
+    "#8B4513"  // коричневый
   ];
   
-  // Выбираем градиент на основе первой буквы
+  // Выбираем цвет на основе первой буквы
   const charCode = letter.charCodeAt(0);
-  const gradientIndex = charCode % gradients.length;
-  const gradient = gradients[gradientIndex];
+  const colorIndex = charCode % colors.length;
+  const color = colors[colorIndex];
   
-  // Создаём SVG аватар с буквой и градиентным фоном
+  // Создаём SVG аватар с сплошным цветом
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200">
     <defs>
-      <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" style="stop-color:${gradient.start};stop-opacity:1" />
-        <stop offset="100%" style="stop-color:${gradient.end};stop-opacity:1" />
-      </linearGradient>
+      <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+        <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.3" />
+      </filter>
     </defs>
-    <rect width="200" height="200" fill="url(#grad)"/>
-    <text x="100" y="110" font-size="90" font-weight="bold" font-family="Arial, sans-serif" fill="white" text-anchor="middle" dominant-baseline="central">${letter}</text>
+    <!-- Фоновый сплошной цвет с закруглением -->
+    <rect width="200" height="200" rx="12" fill="${color}"/>
+    <!-- Верхняя тонкая линия для объёма -->
+    <rect width="200" height="2" fill="white" opacity="0.15"/>
+    <!-- Буква с мягкой тенью и сглаживанием -->
+    <text x="100" y="105" font-size="100" font-weight="700" font-family="'Segoe UI', 'Helvetica Neue', sans-serif" fill="white" text-anchor="middle" dominant-baseline="central" filter="url(#shadow)" shape-rendering="crispEdges" style="text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; letter-spacing: -2px;">${letter}</text>
   </svg>`;
   
   // Кодируем SVG в data URL

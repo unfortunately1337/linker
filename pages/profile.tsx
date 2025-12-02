@@ -923,7 +923,7 @@ export default function ProfilePage() {
                   onClick={() => setSettingsTab('privacy')}
                 >
                   <FaUserCircle size={16} />
-                  <span>Статус</span>
+                  <span>Конфиденциальность</span>
                 </button>
               </div>
             </div>
@@ -1367,7 +1367,7 @@ export default function ProfilePage() {
                 <>
                   <div className={styles.contentHeader}>
                     <FaUserCircle className={styles.contentHeaderIcon} />
-                    <span className={styles.contentHeaderTitle}>Статус онлайна</span>
+                    <span className={styles.contentHeaderTitle}>Конфиденциальность</span>
                   </div>
                   <div className={styles.contentBody}>
                     <div className={styles.section}>

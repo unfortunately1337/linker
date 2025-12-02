@@ -657,8 +657,9 @@
 
   .contentBody {
     padding: 14px 16px;
-    overflow-y: auto;
-    max-height: calc(90vh - 160px);
+    /* allow content bodies to expand and be part of the single scrolling container */
+    overflow: visible;
+    max-height: none;
   }
 
   .section {
