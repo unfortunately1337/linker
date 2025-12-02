@@ -158,7 +158,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           const userPayload = {
             chatId,
             senderId: user.id,
-            senderName: user.login || (user as any).name || 'Unknown',
+            senderName: (user as any).link || user.login || (user as any).name || 'Unknown',
             senderLink: (user as any).link || null,
             senderAvatar: user.avatar || null,
             senderRole: (user as any).role || null,
