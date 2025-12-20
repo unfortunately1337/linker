@@ -104,6 +104,18 @@ export const CallWindow: React.FC<CallWindowProps> = ({
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
         }
+        @keyframes smile-bounce {
+          0%, 100% { transform: scale(1) translateY(0); }
+          50% { transform: scale(1.1) translateY(-10px); }
+        }
+        @keyframes wink-open {
+          0%, 100% { opacity: 1; }
+          45%, 55% { opacity: 0; }
+        }
+        @keyframes wink-close {
+          0%, 100% { opacity: 0; }
+          45%, 55% { opacity: 1; }
+        }
       `}</style>
 
       {isEnded ? (
@@ -226,19 +238,48 @@ export const CallWindow: React.FC<CallWindowProps> = ({
                     />
                   </>
                 ) : (
-                  <svg
-                    width="80"
-                    height="80"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="#3b82f6"
-                    strokeWidth="2"
+                  <div
                     style={{
-                      animation: 'rotate 3s linear infinite'
+                      position: 'relative',
+                      width: '100px',
+                      height: '100px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      animation: 'smile-bounce 2s ease-in-out infinite'
                     }}
                   >
-                    <circle cx="12" cy="12" r="10" strokeDasharray="60" strokeDashoffset="0" />
-                  </svg>
+                    <div
+                      style={{
+                        position: 'absolute',
+                        fontSize: '80px',
+                        fontWeight: 'bold',
+                        color: '#3b82f6',
+                        textShadow: '0 0 30px rgba(66, 165, 245, 0.8)',
+                        fontFamily: 'monospace',
+                        letterSpacing: '2px',
+                        opacity: 1,
+                        animation: 'wink-open 2s ease-in-out infinite'
+                      }}
+                    >
+                      :)
+                    </div>
+                    <div
+                      style={{
+                        position: 'absolute',
+                        fontSize: '80px',
+                        fontWeight: 'bold',
+                        color: '#3b82f6',
+                        textShadow: '0 0 30px rgba(66, 165, 245, 0.8)',
+                        fontFamily: 'monospace',
+                        letterSpacing: '2px',
+                        opacity: 0,
+                        animation: 'wink-close 2s ease-in-out infinite'
+                      }}
+                    >
+                      ;)
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
@@ -316,75 +357,80 @@ export const CallWindow: React.FC<CallWindowProps> = ({
             width: 420,
             maxWidth: '92vw',
             background: 'linear-gradient(135deg, rgba(20,21,25,0.95), rgba(15,17,19,0.98))',
-            borderRadius: 32,
-            padding: 32,
+            borderRadius: 24,
+            padding: 40,
             boxShadow:
               '0 25px 70px rgba(0,0,0,0.9), inset 0 1px 1px rgba(255,255,255,0.05)',
             color: '#fff',
             zIndex: 2010,
             border: '1px solid rgba(255,255,255,0.04)',
-            animation: 'slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+            animation: 'slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center'
           }}
         >
-          {/* Avatar section with gradient */}
-          <div style={{ textAlign: 'center', marginBottom: 32 }}>
+          {/* Avatar section - large circular */}
+          <div
+            style={{
+              position: 'relative',
+              marginBottom: 24,
+              display: 'flex',
+              justifyContent: 'center',
+              width: '100%'
+            }}
+          >
             <div
               style={{
                 position: 'relative',
-                display: 'inline-block',
-                marginBottom: 20
+                width: 200,
+                height: 200,
+                borderRadius: '50%',
+                background: '#f5f5f5',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                overflow: 'hidden',
+                boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+                border: '4px solid #fff'
               }}
             >
-              <div
+              <img
+                src={targetAvatar || '/window.svg'}
+                alt="avatar"
                 style={{
-                  width: 140,
-                  height: 140,
-                  borderRadius: '50%',
-                  background: 'linear-gradient(135deg, rgba(33,150,243,0.15), rgba(156,39,176,0.12))',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  border: '2px solid rgba(33,150,243,0.3)',
-                  animation: isIncoming || isOutgoing ? 'ring 0.5s ease-in-out' : 'none'
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover'
                 }}
-              >
-                <img
-                  src={targetAvatar || '/window.svg'}
-                  alt="avatar"
-                  style={{
-                    width: 136,
-                    height: 136,
-                    borderRadius: '50%',
-                    objectFit: 'cover',
-                    background: '#1a1c1f'
-                  }}
-                />
-              </div>
+              />
               {isActive && (
                 <div
                   style={{
                     position: 'absolute',
-                    bottom: -6,
-                    right: -6,
-                    width: 32,
-                    height: 32,
+                    bottom: 12,
+                    right: 12,
+                    width: 28,
+                    height: 28,
                     borderRadius: '50%',
                     background: '#22c55e',
-                    border: '3px solid rgba(20,21,25,0.95)',
+                    border: '3px solid #fff',
                     animation: 'glow 2s ease-in-out infinite',
-                    boxShadow: '0 0 20px rgba(34, 197, 94, 0.6)'
+                    boxShadow: '0 0 20px rgba(34, 197, 94, 0.8)'
                   }}
                 />
               )}
             </div>
+          </div>
 
+          {/* Name and status */}
+          <div style={{ textAlign: 'center', marginBottom: 28, width: '100%' }}>
             <div
               style={{
                 fontWeight: 800,
-                fontSize: 28,
-                marginBottom: 10,
-                letterSpacing: '-0.5px',
-                animation: 'slideUp 0.4s cubic-bezier(0.4, 0, 0.2, 1) 0.1s backwards'
+                fontSize: 26,
+                marginBottom: 8,
+                letterSpacing: '-0.3px'
               }}
             >
               {targetName || 'Звонок'}
@@ -393,187 +439,183 @@ export const CallWindow: React.FC<CallWindowProps> = ({
             <div
               style={{
                 color: '#a0aec0',
-                fontSize: 16,
-                fontWeight: 600,
-                letterSpacing: '0.2px',
-                animation: 'slideUp 0.4s cubic-bezier(0.4, 0, 0.2, 1) 0.2s backwards'
+                fontSize: 14,
+                fontWeight: 500,
+                letterSpacing: '0.2px'
               }}
             >
               {isOutgoing
-                ? 'Вызов...'
+                ? 'вызов...'
                 : isIncoming
-                  ? 'Входящий звонок'
+                  ? 'входящий звонок'
                   : isConnecting
-                    ? 'Соединение...'
+                    ? 'соединение...'
                     : isActive
-                      ? 'В разговоре'
+                      ? elapsed
                       : ''}
             </div>
           </div>
 
-          {/* Timer - only show when in-call */}
-          {isActive && (
-            <div
-              style={{
-                textAlign: 'center',
-                marginBottom: 28,
-                animation: 'slideUp 0.4s cubic-bezier(0.4, 0, 0.2, 1)'
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 44,
-                  fontWeight: 900,
-                  color: '#81d4fa',
-                  letterSpacing: '-1px',
-                  fontVariantNumeric: 'tabular-nums',
-                  textShadow: '0 4px 16px rgba(129, 212, 250, 0.2)'
-                }}
-              >
-                {elapsed}
-              </div>
-            </div>
-          )}
-
-          {/* Controls */}
+          {/* Controls - bottom row with 4 buttons */}
           <div
             style={{
               display: 'flex',
               gap: 16,
               justifyContent: 'center',
-              alignItems: 'center',
+              width: '100%',
               flexWrap: 'wrap'
             }}
           >
             {isIncoming ? (
               <>
-                {/* Accept button */}
+                {/* Accept button - green */}
                 <button
                   onClick={onAccept}
                   title="Принять"
                   style={{
-                    width: 72,
-                    height: 72,
+                    width: 56,
+                    height: 56,
                     borderRadius: '50%',
                     border: 'none',
-                    background: 'linear-gradient(135deg, #22c55e, #16a34a)',
+                    background: '#22c55e',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     cursor: 'pointer',
-                    boxShadow:
-                      '0 12px 36px rgba(34,197,94,0.35), inset 0 1px 2px rgba(255,255,255,0.15)',
-                    transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                    boxShadow: '0 4px 12px rgba(34,197,94,0.4)',
+                    transition: 'all 0.2s ease',
                     transform: 'scale(1)'
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = 'scale(1.1)';
-                    e.currentTarget.style.boxShadow =
-                      '0 16px 44px rgba(34,197,94,0.4), inset 0 1px 2px rgba(255,255,255,0.2)';
+                    e.currentTarget.style.transform = 'scale(1.08)';
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.transform = 'scale(1)';
-                    e.currentTarget.style.boxShadow =
-                      '0 12px 36px rgba(34,197,94,0.35), inset 0 1px 2px rgba(255,255,255,0.15)';
                   }}
                 >
-                  <svg
-                    width="32"
-                    height="32"
-                    viewBox="0 0 24 24"
-                    fill="white"
-                    stroke="white"
-                    strokeWidth="2"
-                  >
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="white" stroke="white" strokeWidth="2">
                     <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
                   </svg>
                 </button>
 
-                {/* Decline button */}
+                {/* Decline button - red */}
                 <button
                   onClick={onEnd}
                   title="Отклонить"
                   style={{
-                    width: 72,
-                    height: 72,
+                    width: 56,
+                    height: 56,
                     borderRadius: '50%',
                     border: 'none',
-                    background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+                    background: '#ef4444',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     cursor: 'pointer',
-                    boxShadow:
-                      '0 12px 36px rgba(239,68,68,0.35), inset 0 1px 2px rgba(255,255,255,0.15)',
-                    transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                    boxShadow: '0 4px 12px rgba(239,68,68,0.4)',
+                    transition: 'all 0.2s ease',
                     transform: 'scale(1)'
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = 'scale(1.1)';
-                    e.currentTarget.style.boxShadow =
-                      '0 16px 44px rgba(239,68,68,0.4), inset 0 1px 2px rgba(255,255,255,0.2)';
+                    e.currentTarget.style.transform = 'scale(1.08)';
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.transform = 'scale(1)';
-                    e.currentTarget.style.boxShadow =
-                      '0 12px 36px rgba(239,68,68,0.35), inset 0 1px 2px rgba(255,255,255,0.15)';
                   }}
                 >
-                  <svg
-                    width="32"
-                    height="32"
-                    viewBox="0 0 24 24"
-                    fill="white"
-                    stroke="white"
-                    strokeWidth="2"
-                    style={{ transform: 'rotate(135deg)' }}
-                  >
-                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="white" stroke="white" strokeWidth="2">
+                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" style={{ transform: 'rotate(135deg)' }} />
                   </svg>
                 </button>
               </>
             ) : (
               <>
+                {/* Screen share */}
+                <button
+                  onClick={onMinimize}
+                  title="Экран"
+                  style={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: '50%',
+                    border: 'none',
+                    background: 'rgba(100, 116, 139, 0.3)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'rgba(100, 116, 139, 0.5)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'rgba(100, 116, 139, 0.3)';
+                  }}
+                >
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="2">
+                    <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                    <line x1="8" y1="21" x2="16" y2="21"></line>
+                    <line x1="12" y1="17" x2="12" y2="21"></line>
+                  </svg>
+                </button>
+
+                {/* End call - red */}
+                <button
+                  onClick={onEnd}
+                  title="Завершить"
+                  style={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: '50%',
+                    border: 'none',
+                    background: '#ef4444',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(239,68,68,0.4)',
+                    transition: 'all 0.2s ease',
+                    transform: 'scale(1)'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'scale(1.08)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'scale(1)';
+                  }}
+                >
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="white" stroke="white" strokeWidth="2">
+                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" style={{ transform: 'rotate(135deg)' }} />
+                  </svg>
+                </button>
+
                 {/* Mute/unmute */}
                 <button
                   onClick={onToggleMute}
                   title={muted ? 'Включить микрофон' : 'Выключить микрофон'}
                   style={{
-                    width: 64,
-                    height: 64,
+                    width: 56,
+                    height: 56,
                     borderRadius: '50%',
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    background: muted
-                      ? 'linear-gradient(135deg, rgba(239,68,68,0.25), rgba(220,38,38,0.15))'
-                      : 'linear-gradient(135deg, rgba(100,116,139,0.25), rgba(71,85,105,0.15))',
+                    border: 'none',
+                    background: muted ? 'rgba(239, 68, 68, 0.4)' : 'rgba(100, 116, 139, 0.3)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     cursor: 'pointer',
-                    boxShadow: '0 6px 16px rgba(0,0,0,0.4)',
-                    transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)'
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+                    transition: 'all 0.2s ease'
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = muted
-                      ? 'linear-gradient(135deg, rgba(239,68,68,0.35), rgba(220,38,38,0.25))'
-                      : 'linear-gradient(135deg, rgba(100,116,139,0.35), rgba(71,85,105,0.25))';
-                    e.currentTarget.style.boxShadow = '0 8px 20px rgba(0,0,0,0.5)';
+                    e.currentTarget.style.background = muted ? 'rgba(239, 68, 68, 0.6)' : 'rgba(100, 116, 139, 0.5)';
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.background = muted
-                      ? 'linear-gradient(135deg, rgba(239,68,68,0.25), rgba(220,38,38,0.15))'
-                      : 'linear-gradient(135deg, rgba(100,116,139,0.25), rgba(71,85,105,0.15))';
-                    e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.4)';
+                    e.currentTarget.style.background = muted ? 'rgba(239, 68, 68, 0.4)' : 'rgba(100, 116, 139, 0.3)';
                   }}
                 >
-                  <svg
-                    width="26"
-                    height="26"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke={muted ? '#ef4444' : '#94a3b8'}
-                    strokeWidth="2"
-                  >
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={muted ? '#ef4444' : '#cbd5e1'} strokeWidth="2">
                     {muted ? (
                       <>
                         <path d="M1 9v6a7 7 0 0 0 7 7h8m0-13V3a7 7 0 0 0-7 7v6" />
@@ -585,84 +627,6 @@ export const CallWindow: React.FC<CallWindowProps> = ({
                         <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
                       </>
                     )}
-                  </svg>
-                </button>
-
-                {/* Minimize */}
-                <button
-                  onClick={onMinimize}
-                  title="Свернуть"
-                  style={{
-                    width: 64,
-                    height: 64,
-                    borderRadius: '50%',
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    background:
-                      'linear-gradient(135deg, rgba(100,116,139,0.25), rgba(71,85,105,0.15))',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    boxShadow: '0 6px 16px rgba(0,0,0,0.4)',
-                    transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background =
-                      'linear-gradient(135deg, rgba(100,116,139,0.35), rgba(71,85,105,0.25))';
-                    e.currentTarget.style.boxShadow = '0 8px 20px rgba(0,0,0,0.5)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background =
-                      'linear-gradient(135deg, rgba(100,116,139,0.25), rgba(71,85,105,0.15))';
-                    e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.4)';
-                  }}
-                >
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2">
-                    <polyline points="4 14 10 14 10 20"></polyline>
-                    <path d="M4 14L4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8"></path>
-                  </svg>
-                </button>
-
-                {/* End call */}
-                <button
-                  onClick={onEnd}
-                  title="Завершить"
-                  style={{
-                    width: 72,
-                    height: 72,
-                    borderRadius: '50%',
-                    border: 'none',
-                    background: 'linear-gradient(135deg, #ef4444, #dc2626)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    boxShadow:
-                      '0 12px 36px rgba(239,68,68,0.35), inset 0 1px 2px rgba(255,255,255,0.15)',
-                    transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-                    transform: 'scale(1)'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = 'scale(1.1)';
-                    e.currentTarget.style.boxShadow =
-                      '0 16px 44px rgba(239,68,68,0.4), inset 0 1px 2px rgba(255,255,255,0.2)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = 'scale(1)';
-                    e.currentTarget.style.boxShadow =
-                      '0 12px 36px rgba(239,68,68,0.35), inset 0 1px 2px rgba(255,255,255,0.15)';
-                  }}
-                >
-                  <svg
-                    width="32"
-                    height="32"
-                    viewBox="0 0 24 24"
-                    fill="white"
-                    stroke="white"
-                    strokeWidth="2"
-                    style={{ transform: 'rotate(135deg)' }}
-                  >
-                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
                   </svg>
                 </button>
               </>

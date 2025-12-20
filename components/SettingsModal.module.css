@@ -12,13 +12,13 @@
 .modal {
   width: 440px;
   max-width: 96%;
-  background: linear-gradient(180deg, #0c0d0f, #0f1013);
+  background: linear-gradient(180deg, #1a1d21, #161920);
   border-radius: 14px;
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255,255,255,0.02);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255,255,255,0.01);
   padding: 20px;
   color: #fff;
   box-sizing: border-box;
-  border: 1px solid rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.01);
 }
 
 .title {
@@ -30,7 +30,7 @@
 }
 
 .section {
-  background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.006));
+  background: linear-gradient(180deg, rgba(0,0,0,0.3), rgba(0,0,0,0.2));
   border-radius: 10px;
   padding: 14px;
 }
@@ -93,10 +93,10 @@
 .popoverInner {
   min-width: 260px;
   max-width: 320px;
-  background: linear-gradient(180deg, #0e0f11, #0b0b0c);
+  background: linear-gradient(180deg, #1a1d21, #161719);
   border-radius: 10px;
-  border: 1px solid rgba(255,255,255,0.04);
-  box-shadow: 0 12px 36px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.02);
+  box-shadow: 0 12px 36px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.01);
   padding: 12px;
   color: #fff;
 }

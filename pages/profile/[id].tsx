@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { FaCog, FaQrcode } from 'react-icons/fa';
 import ToastNotification from '../../components/ToastNotification';
+import { useSession } from "next-auth/react";
 
 // Small copy button component used on other users' profile page
 function CopyButton({ idToCopy }: { idToCopy: string }) {
@@ -23,17 +24,19 @@ function CopyButton({ idToCopy }: { idToCopy: string }) {
     </div>
   );
 }
+
+
 import { useRouter } from "next/router";
 import { useCall } from '../../components/CallProvider';
 
 export default function UserProfile() {
   const router = useRouter();
   const { id } = router.query;
+  const { data: session } = useSession();
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isFriend, setIsFriend] = useState(false);
   const [requestSent, setRequestSent] = useState(false);
-  const [currentUser, setCurrentUser] = useState<{id:string,login:string}|null>(null);
   const [showToastLocal, setShowToastLocal] = useState(false);
   const [toastMsgLocal, setToastMsgLocal] = useState('');
   const [toastTypeLocal, setToastTypeLocal] = useState<'success'|'error'>('success');
@@ -70,13 +73,12 @@ export default function UserProfile() {
 
   useEffect(() => {
     if (!id) return;
-    // Получаем текущего пользователя из localStorage
-    let loadedUser = null;
-    try {
-      const u = localStorage.getItem('app_user') || localStorage.getItem('user');
-      if (u) loadedUser = JSON.parse(u);
-    } catch {}
-    setCurrentUser(loadedUser);
+    
+    // Если это свой профиль, редирект на страницу настроек
+    if (session?.user && (session.user as any).id === id) {
+      router.replace('/profile');
+      return;
+    }
     
     // Загружаем кастомное имя для этого друга
     try {
@@ -93,9 +95,9 @@ export default function UserProfile() {
         setUser(data.user);
         setLoading(false);
         // Проверяем, друг ли этот пользователь — поиск только по полю link
-        if (data.user && loadedUser && data.user.link) {
+        if (data.user && session?.user?.id && data.user.link) {
           const q = encodeURIComponent(data.user.link);
-          fetch(`/api/friends/search?link=${q}&userId=${loadedUser.id}`)
+          fetch(`/api/friends/search?link=${q}&userId=${(session.user as any).id}`)
             .then(r => r.json())
             .then(fdata => {
               if (Array.isArray(fdata.users)) {
@@ -114,7 +116,7 @@ export default function UserProfile() {
         setUser(null);
         setLoading(false);
       });
-  }, [id]);
+  }, [id, session?.user?.id, router]);
 
   if (loading) return <div style={{ color: "#bbb", textAlign: "center", marginTop: 40 }}>Загрузка профиля...</div>;
   if (!user) return <div style={{ color: "#e74c3c", textAlign: "center", marginTop: 40 }}>Пользователь не найден</div>;
@@ -237,7 +239,7 @@ export default function UserProfile() {
         }
       `}</style>
       {/* Settings button absolutely top-right for the current user (no border) */}
-      {currentUser && currentUser.id === user.id && (
+      {session?.user && (session.user as any).id === user.id && (
         <button
           onClick={() => router.push('/profile')}
           title="Настройки"
@@ -265,7 +267,7 @@ export default function UserProfile() {
           <FaCog />
         </button>
       )}
-      {currentUser && currentUser.id === user.id && (
+      {session?.user && (session.user as any).id === user.id && (
         <button
           onClick={() => { setToastMsgLocal('Функция в разработке...'); setToastTypeLocal('success'); setShowToastLocal(true); }}
           title="Сканировать QR"
@@ -589,7 +591,7 @@ export default function UserProfile() {
           )}
           
           {/* Кнопка заявки */}
-          {currentUser && user && currentUser.id !== user.id && !isFriend && (
+          {session?.user && user && (session.user as any).id !== user.id && !isFriend && (
             requestSent ? (
               <span style={{ color: '#64b5f6', fontWeight: 500, fontSize: 14, marginTop: 8 }}>Заявка отправлена</span>
             ) : (
@@ -620,13 +622,13 @@ export default function UserProfile() {
                   e.currentTarget.style.boxShadow = '0 2px 12px #64b5f644';
                 }}
                 onClick={async () => {
-                  if (!currentUser || !user) return;
+                  if (!session?.user || !user) return;
                   try {
                     const res = await fetch('/api/friends/request', {
                       method: 'POST',
                       credentials: 'include',
                       headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ userId: currentUser.id, friendId: user.id })
+                      body: JSON.stringify({ userId: (session.user as any).id, friendId: user.id })
                     });
                     if (res.ok) {
                       setRequestSent(true);
@@ -652,17 +654,9 @@ export default function UserProfile() {
             <div style={{ fontSize: 13, color: '#bfbfbf' }}>UserID — <span style={{ color: '#9aa0a6', fontWeight: 700 }}>{user.id}</span></div>
             <CopyButton idToCopy={user.id} />
           </div>
-          
-          {user.phoneNumber && (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, background: 'rgba(255,255,255,0.02)', padding: '8px 12px', borderRadius: 10, color: '#ccc', marginTop: 8 }} className="phone-row">
-              <div style={{ fontSize: 13, color: '#bfbfbf', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
-                <span style={{ color: '#9aa0a6', fontWeight: 700, fontSize: 16 }}>{user.phoneNumber === "0" ? "Скрыт" : user.phoneNumber}</span>
-                <span style={{ fontSize: 12, color: '#888' }}>Телефон</span>
-              </div>
-            </div>
-          )}
         </div>
       )}
+
       {showToastLocal && <ToastNotification type={toastTypeLocal === 'success' ? 'success' : 'error'} message={toastMsgLocal} duration={3000} onClose={()=>setShowToastLocal(false)} />}
       
       {/* Modal for editing custom name */}

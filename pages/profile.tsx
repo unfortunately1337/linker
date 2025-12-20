@@ -69,7 +69,7 @@ function CodeInput({ value, onChange, length = 6, disabled = false }: CodeInputP
 import ToastNotification from "../components/ToastNotification";
 import LottiePlayer from "../lib/LottiePlayer";
 // Форма смены логина
-type UserType = { id: string; login: string; link?: string | null; verified?: boolean; status?: 'online' | 'offline' | 'dnd'; phoneNumber?: string } | null;
+type UserType = { id: string; login: string; link?: string | null; verified?: boolean; status?: 'online' | 'offline' | 'dnd' } | null;
 type ChangeLoginFormProps = {
   user: UserType;
   setUser: (u: any) => void;
@@ -172,7 +172,6 @@ export default function ProfilePage() {
   const [desc, setDesc] = useState<string>("");
   const [avatar, setAvatar] = useState<string>("");
   const [backgroundUrl, setBackgroundUrl] = useState<string>("");
-  const [phoneNumber, setPhoneNumber] = useState<string>("");
   const [has2FA, setHas2FA] = useState<boolean>(false);
   const [isMobile, setIsMobile] = useState<boolean>(false);
   const [bgOpacity, setBgOpacity] = useState<number>(() => {
@@ -216,8 +215,6 @@ export default function ProfilePage() {
   const [newLogin, setNewLogin] = useState<string>("");
   const [newLink, setNewLink] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
-  const [phoneLoading, setPhoneLoading] = useState<boolean>(false);
-  const [phoneSaved, setPhoneSaved] = useState<boolean>(false);
   const currentSessionId = session && session.user ? (session.user as any).sessionId : null;
   const [prefersReduced, setPrefersReduced] = useState<boolean>(true);
   useEffect(() => {
@@ -260,7 +257,6 @@ export default function ProfilePage() {
         setDesc(data.user.description || "");
         setAvatar(data.user.avatar || "");
   setBackgroundUrl(data.user.backgroundUrl || "");
-  setPhoneNumber(data.user.phoneNumber || "0");
   console.log('Avatar:', data.user.avatar, 'BG URL:', data.user.backgroundUrl);
   // Не трогаем bgOpacity из API, используем localStorage
         setFriends(data.user.friends || []);
@@ -278,7 +274,6 @@ export default function ProfilePage() {
         setDesc("");
         setAvatar("");
         setBackgroundUrl("");
-        setPhoneNumber("0");
         setFriends([]);
         setSessions([]);
       });
@@ -438,38 +433,7 @@ export default function ProfilePage() {
     }
   };
   
-  const handleSavePhoneNumber = async () => {
-    if (!phoneNumber) return;
-    try {
-      setPhoneLoading(true);
-      setPhoneSaved(false);
-      const resp = await fetch('/api/profile/update-phone', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phoneNumber })
-      });
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({}));
-        setToastMsg(err.error || 'Ошибка при сохранении номера');
-        setToastType('error');
-        setShowToast(true);
-        return;
-      }
-      setPhoneSaved(true);
-      setToastMsg('Номер телефона сохранен');
-      setToastType('success');
-      setShowToast(true);
-      setTimeout(() => setPhoneSaved(false), 2000);
-    } catch (e) {
-      console.error('Error saving phone number:', e);
-      setToastMsg('Ошибка сети');
-      setToastType('error');
-      setShowToast(true);
-    } finally {
-      setPhoneLoading(false);
-    }
-  };
+
 
   // Проверка авторизации через NextAuth (после всех хуков)
   if (status === "loading" || !session || !session.user || !session.user.id || !user) {
@@ -699,14 +663,7 @@ export default function ProfilePage() {
           </button>
         </div>
         
-        {user.phoneNumber && (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, background: 'rgba(255,255,255,0.02)', padding: '8px 12px', borderRadius: 10, color: '#ccc', marginBottom: 12 }}>
-            <div style={{ fontSize: 13, color: '#bfbfbf', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
-              <span style={{ color: '#9aa0a6', fontWeight: 700, fontSize: 16 }}>{user.phoneNumber === "0" ? "Скрыт" : user.phoneNumber}</span>
-              <span style={{ fontSize: 12, color: '#888' }}>Телефон</span>
-            </div>
-          </div>
-        )}
+
       </div>
     )}
         <div style={{ display: "flex", gap: 24, marginTop: 24, transition: "gap 0.3s" }}>
@@ -890,14 +847,7 @@ export default function ProfilePage() {
                       />
                     )}
                     <div className={styles.usernameSmall}>Настройки</div>
-                    {phoneNumber && phoneNumber !== "0" && (
-                      <div style={{ fontSize: 12, color: "#9aa0a6", marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                        </svg>
-                        <span>{phoneNumber}</span>
-                      </div>
-                    )}
+
                   </div>
                 </div>
               </div>
@@ -1174,16 +1124,7 @@ export default function ProfilePage() {
                       </div>
                     </div>
 
-                    {/* Phone number section */}
-                    <div className={styles.section}>
-                      <span className={styles.sectionTitle}>Контакты</span>
-                      <div className={styles.card}>
-                        <label className={styles.cardLabel}>Номер телефона</label>
-                        <div style={{ display: 'flex', gap: 10, alignItems: 'center', opacity: 0.6 }}>
-                          <span style={{ color: '#bfbfbf', fontSize: 14 }}>в разработке</span>
-                        </div>
-                      </div>
-                    </div>
+
                   </div>
                 </>
               )}

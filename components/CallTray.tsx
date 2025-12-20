@@ -140,12 +140,8 @@ export const CallTray: React.FC<CallTrayProps> = ({
           to { transform: translateX(0); opacity: 1; }
         }
         @keyframes glow-pulse {
-          0%, 100% { box-shadow: 0 0 0 0 rgba(66, 165, 245, 0.6); }
-          50% { box-shadow: 0 0 0 12px rgba(66, 165, 245, 0); }
-        }
-        @keyframes subtle-float {
-          0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(-4px); }
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.02); }
         }
       `}</style>
 
@@ -155,111 +151,81 @@ export const CallTray: React.FC<CallTrayProps> = ({
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 16,
-          padding: '14px 20px 14px 14px',
-          borderRadius: 16,
-          background: 'linear-gradient(135deg, rgba(66, 165, 245, 0.15), rgba(66, 165, 245, 0.05))',
-          backdropFilter: 'blur(14px)',
+          gap: 12,
+          padding: '12px 16px',
+          borderRadius: 12,
+          background: 'rgba(20, 21, 25, 0.9)',
+          backdropFilter: 'blur(10px)',
           color: '#fff',
-          border: '1px solid rgba(66, 165, 245, 0.25)',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
           cursor: 'pointer',
-          boxShadow: '0 20px 50px rgba(0, 0, 0, 0.7), inset 0 1px 1px rgba(255, 255, 255, 0.08)',
-          transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+          boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5)',
+          transition: 'all 0.2s ease',
           fontFamily: 'inherit',
           fontSize: '14px',
-          animation: callState !== 'in-call' ? 'glow-pulse 2s ease-in-out infinite' : 'subtle-float 3s ease-in-out infinite'
+          animation: callState !== 'in-call' ? 'glow-pulse 2s ease-in-out infinite' : 'none'
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.background = 'linear-gradient(135deg, rgba(66, 165, 245, 0.25), rgba(66, 165, 245, 0.12))';
-          e.currentTarget.style.boxShadow = '0 24px 56px rgba(66, 165, 245, 0.2), inset 0 1px 1px rgba(255, 255, 255, 0.12)';
-          e.currentTarget.style.transform = 'translateY(-4px)';
-          e.currentTarget.style.animation = 'none';
+          e.currentTarget.style.background = 'rgba(30, 31, 35, 0.95)';
+          e.currentTarget.style.boxShadow = '0 12px 32px rgba(0, 0, 0, 0.6)';
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.background = 'linear-gradient(135deg, rgba(66, 165, 245, 0.15), rgba(66, 165, 245, 0.05))';
-          e.currentTarget.style.boxShadow = '0 20px 50px rgba(0, 0, 0, 0.7), inset 0 1px 1px rgba(255, 255, 255, 0.08)';
-          e.currentTarget.style.transform = 'translateY(0)';
-          e.currentTarget.style.animation = callState !== 'in-call' ? 'glow-pulse 2s ease-in-out infinite' : 'subtle-float 3s ease-in-out infinite';
+          e.currentTarget.style.background = 'rgba(20, 21, 25, 0.9)';
+          e.currentTarget.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.5)';
         }}
       >
-        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          <div
+        {/* Avatar */}
+        <div style={{ position: 'relative', flexShrink: 0 }}>
+          <img
+            src={targetAvatar || '/window.svg'}
+            alt="avatar"
             style={{
-              position: 'relative',
-              width: 56,
-              height: 56,
-              borderRadius: '12px',
-              overflow: 'hidden',
-              background: 'linear-gradient(135deg, rgba(66, 165, 245, 0.1), rgba(156, 39, 176, 0.08))',
-              border: '1px solid rgba(66, 165, 245, 0.15)'
+              width: 44,
+              height: 44,
+              borderRadius: '50%',
+              objectFit: 'cover',
+              border: '2px solid rgba(255, 255, 255, 0.1)'
             }}
-          >
-            <img
-              src={targetAvatar || '/window.svg'}
-              alt="avatar"
+          />
+          {callState === 'in-call' && (
+            <div
               style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',
-                background: '#1a1c1f'
+                position: 'absolute',
+                bottom: -2,
+                right: -2,
+                width: 14,
+                height: 14,
+                borderRadius: '50%',
+                background: '#22c55e',
+                border: '2px solid rgba(20, 21, 25, 0.95)',
+                boxShadow: '0 2px 8px rgba(34, 197, 94, 0.6)'
               }}
             />
-
-            {callState === 'in-call' && (
-              <>
-                <div
-                  style={{
-                    position: 'absolute',
-                    bottom: 2,
-                    right: 2,
-                    width: 18,
-                    height: 18,
-                    borderRadius: '50%',
-                    background: '#22c55e',
-                    border: '2px solid rgba(20, 21, 25, 0.95)',
-                    boxShadow: '0 4px 12px rgba(34, 197, 94, 0.5)'
-                  }}
-                />
-              </>
-            )}
-
-            {callState !== 'in-call' && (
-              <div
-                style={{
-                  position: 'absolute',
-                  inset: 0,
-                  borderRadius: '12px',
-                  background: callState === 'ringing'
-                    ? 'radial-gradient(circle at center, rgba(251, 191, 36, 0.2), transparent)'
-                    : 'radial-gradient(circle at center, rgba(96, 165, 250, 0.2), transparent)',
-                  animation: callState === 'ringing' ? 'pulse 2s ease-in-out infinite' : 'pulse 1.5s ease-in-out infinite'
-                }}
-              />
-            )}
-          </div>
+          )}
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 3, flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 700, fontSize: '15px', letterSpacing: '-0.3px', color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '150px' }}>
+        {/* Info */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0, flex: 1 }}>
+          <div style={{ fontWeight: 600, fontSize: '13px', color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {targetName || 'Звонок'}
           </div>
-          <div style={{ color: statusColor, fontSize: '13px', fontWeight: 600, transition: 'color 0.3s' }}>
+          <div style={{ color: statusColor, fontSize: '12px', fontWeight: 500 }}>
             {statusText}
           </div>
         </div>
 
+        {/* Expand arrow */}
         <svg
-          width="20"
-          height="20"
+          width="18"
+          height="18"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
-          strokeWidth="2"
+          strokeWidth="2.5"
           style={{
-            color: '#81d4fa',
+            color: '#a0aec0',
             flexShrink: 0,
-            opacity: 0.7,
-            transition: 'all 0.2s'
+            transition: 'transform 0.2s'
           }}
         >
           <polyline points="9 18 15 12 9 6"></polyline>
