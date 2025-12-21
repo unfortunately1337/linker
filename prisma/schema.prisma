@@ -42,7 +42,7 @@ model User {
   role           String       @default("user")
   backgroundUrl  String?
   status         String?
-  phoneNumber    String       @default("0")
+  firstLoginDone Boolean      @default(false)
   chatUnreads    ChatUnread[]
   friends        Friend[]     @relation("UserFriends")
   sentMessages   Message[]    @relation("UserSentMessages")

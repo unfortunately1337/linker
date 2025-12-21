@@ -38,39 +38,48 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       const friendsFull = await Promise.all(
         (user?.friends || []).map(async (fr: any) => {
-          const friend = await prisma.user.findUnique({
-            where: { id: fr.friendId },
-          });
+          try {
+            const friend = await prisma.user.findUnique({
+              where: { id: fr.friendId },
+            });
 
-          if (friend) {
-            (friend as any).sessions = await getUserSessions(friend.id);
+            if (friend) {
+              try {
+                (friend as any).sessions = await getUserSessions(friend.id);
+              } catch (sessionErr) {
+                console.error(`[PROFILE] Failed to get sessions for friend ${friend.id}:`, sessionErr);
+                (friend as any).sessions = [];
+              }
+            }
+            if (!friend) return null;
+
+            const savedF = (friend as any).status;
+            const allowedF = ['online', 'offline', 'dnd'];
+
+            const friendSessions = ((friend as any).sessions || []);
+
+            const friendStatus =
+              (typeof savedF === 'string' && allowedF.includes(savedF))
+                ? savedF
+                : (friendSessions.some((s: any) => {
+                    if (!s.isActive) return false;
+                    const created = new Date(s.createdAt).getTime();
+                    const now = Date.now();
+                    return now - created < 2 * 60 * 1000;
+                  }) ? 'online' : 'offline');
+
+            return {
+              id: friend.id,
+              login: friend.login,
+              link: friend.link || null,
+              avatar: friend.avatar,
+              role: friend.role,
+              status: friendStatus,
+            };
+          } catch (err) {
+            console.error(`[PROFILE] Error processing friend ${fr.friendId}:`, err);
+            return null;
           }
-          if (!friend) return null;
-
-          const savedF = (friend as any).status;
-          const allowedF = ['online', 'offline', 'dnd'];
-
-          const friendSessions = ((friend as any).sessions || []);
-
-          const friendStatus =
-            (typeof savedF === 'string' && allowedF.includes(savedF))
-              ? savedF
-              : (friendSessions.some((s: any) => {
-                  if (!s.isActive) return false;
-                  const created = new Date(s.createdAt).getTime();
-                  const now = Date.now();
-                  return now - created < 2 * 60 * 1000;
-                }) ? 'online' : 'offline');
-
-          return {
-            id: friend.id,
-            login: friend.login,
-            link: friend.link || null,
-            avatar: friend.avatar,
-            role: friend.role,
-            status: friendStatus,
-            phoneNumber: (friend as any).phoneNumber || "0",
-          };
         })
       );
 
@@ -137,11 +146,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         role: (user as any).role || null,
         description: (user as any).description || null,
         backgroundUrl: (user as any).backgroundUrl || null,
-        phoneNumber: (user as any).phoneNumber || "0",
         bgOpacity: (user as any).bgOpacity ?? null,
         favoriteTrackUrl: (user as any).favoriteTrackUrl ?? null,
         createdAt: (user as any).createdAt,
         status: mainStatus,
+        firstLoginDone: (user as any).firstLoginDone || false,
         sessions: userSessions,
         friends: friendsFull.filter(Boolean),
         friendRequests: friendRequests.filter(Boolean)
@@ -253,6 +262,47 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         bgOpacity: (user as any).bgOpacity ?? null,
         favoriteTrackUrl: (user as any).favoriteTrackUrl ?? null,
         createdAt: (user as any).createdAt,
+      };
+
+      return res.status(200).json({ user: returnedUser });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message || "Internal server error" });
+    }
+  }
+
+  if (req.method === "PATCH") {
+    const session = (await getServerSession(req, res, authOptions as any)) as any;
+
+    if (!session || !session.user || !(session.user as any).id) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const currentUserId = (session.user as any).id;
+    const { firstLoginDone } = req.body;
+
+    try {
+      const data: any = {};
+
+      if (typeof firstLoginDone === "boolean") {
+        data.firstLoginDone = firstLoginDone;
+      }
+
+      const user = await prisma.user.update({
+        where: { id: currentUserId },
+        data,
+      });
+
+      const returnedUser = {
+        id: (user as any).id,
+        login: (user as any).login,
+        twoFactorEnabled: (user as any).twoFactorEnabled || false,
+        link: (user as any).link || null,
+        avatar: (user as any).avatar || null,
+        role: (user as any).role || null,
+        description: (user as any).description || null,
+        backgroundUrl: (user as any).backgroundUrl || null,
+        createdAt: (user as any).createdAt,
+        firstLoginDone: (user as any).firstLoginDone,
       };
 
       return res.status(200).json({ user: returnedUser });

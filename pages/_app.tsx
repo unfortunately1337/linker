@@ -14,6 +14,7 @@ import { MessageToast } from '../components/MessageToast';
 import ToastNotification from '../components/ToastNotification';
 import { getPusherClient } from '../lib/pusher';
 import { getUser as getLocalUser } from '../lib/session';
+import GuideModal from '../components/GuideModal';
 
 const Sidebar = dynamic(() => import("../components/Sidebar"), { ssr: false });
 
@@ -21,6 +22,8 @@ function MainApp({ Component, pageProps }: AppProps) {
   const router = useRouter();
   const { data: session } = useSession();
   const [bottomToast, setBottomToast] = useState<null | { type: 'error' | 'success'; message: string; duration?: number; actions?: any[] }>(null);
+  const [showGuide, setShowGuide] = useState(false);
+  const guideShownRef = useRef(false);
 
   // Главная страница доступна всем, редирект убран
   const hideSidebarRoutes = ["/auth/login", "/auth/register", "/", "/chat/[id]"];
@@ -50,6 +53,16 @@ function MainApp({ Component, pageProps }: AppProps) {
         const profileRes = await fetch(pKey, { credentials: 'include' });
         const profileJson = await profileRes.json().catch(() => null);
         if (!cancelled) await mutate(pKey, profileJson, false);
+        
+        // Check if user has completed the first login guide
+        if (profileJson && profileJson.user && !profileJson.user.firstLoginDone && !guideShownRef.current) {
+          guideShownRef.current = true;
+          // Show guide after 3 seconds delay
+          setTimeout(() => {
+            if (!cancelled) setShowGuide(true);
+          }, 3000);
+        }
+        
         // if we got a profile, save it to local storage so Sidebar and other local helpers can pick it up
         try {
           if (profileJson && profileJson.user) {
@@ -340,6 +353,21 @@ function MainApp({ Component, pageProps }: AppProps) {
     };
   }, [session]);
 
+  const handleGuideClose = async () => {
+    setShowGuide(false);
+    // Update user's firstLoginDone flag
+    try {
+      await fetch('/api/profile', {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ firstLoginDone: true })
+      });
+    } catch (e) {
+      console.error('Failed to update firstLoginDone:', e);
+    }
+  };
+
   return (
     <div className={useElms ? 'use-elms-sans' : ''}>
       <Head>
@@ -393,6 +421,7 @@ function MainApp({ Component, pageProps }: AppProps) {
           actions={bottomToast.actions}
         />
       )}
+      <GuideModal isOpen={showGuide} onClose={handleGuideClose} />
       <Toaster position="top-right" />
       {/* Audio fallback: try /sounds first (existing), then /sound */}
       <audio ref={audioRef} preload="none">

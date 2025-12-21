@@ -2,12 +2,12 @@ import React, { useEffect, useRef } from "react";
 
 interface LottiePlayerProps {
   src: string;
-  width?: number;
-  height?: number;
+  width?: number | string;
+  height?: number | string;
   loop?: boolean;
 }
 
-export default function LottiePlayer({ src, width = 24, height = 24, loop = true }: LottiePlayerProps) {
+export default function LottiePlayer({ src, width = '100%', height = '100%', loop = true }: LottiePlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
