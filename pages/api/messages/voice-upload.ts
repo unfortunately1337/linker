@@ -9,7 +9,7 @@ import { authOptions } from '../auth/[...nextauth]';
 import { getStoragePath, ensureDir } from '../../../lib/storage';
 import { uploadLimiter } from '../../../lib/rateLimiter';
 // No encryption for voice files anymore — store raw files under pages/api/.private_media/voice
-import { pusher } from '../../../lib/pusher';
+import { getSocket } from '../../../lib/socket';
 
 export const config = {
 	api: {
@@ -281,7 +281,10 @@ async function voiceUploadHandler(req: NextApiRequest, res: NextApiResponse) {
 		// Отправляем событие в Pusher
 		try {
 			const payload = { id: message.id, sender: userId, text: '', createdAt: message.createdAt, audioUrl: urlValue, persisted, dbError };
-			await pusher.trigger(`chat-${chatId}`, 'new-message', payload);
+			const pusher = getSocket();
+			if (pusher) {
+				await pusher.trigger(`chat-${chatId}`, 'new-message', payload);
+			}
 		} catch (pErr) {
 			console.error('[VOICE UPLOAD] Pusher trigger failed:', pErr);
 		}

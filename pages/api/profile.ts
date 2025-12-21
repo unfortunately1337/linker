@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import prisma from "../../lib/prisma";
-import { pusher } from "../../lib/pusher";
+import { getSocket } from "../../lib/socket";
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from './auth/[...nextauth]';
 import { getUserSessions } from '../../lib/sessions';
@@ -236,13 +236,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
           if (newStatus !== prevStatus) {
             try {
-              await pusher.trigger(
-                `user-${currentUserId}`,
-                'status-changed',
-                { userId: currentUserId, status: newStatus }
-              );
+              const pusher = getSocket();
+              if (pusher) {
+                await pusher.trigger(`user-${currentUserId}`, 'status-changed', { userId: currentUserId, status: newStatus });
+              }
             } catch (pErr) {
-              console.error('[PROFILE] Failed to trigger pusher status-changed:', String(pErr));
+              console.error('[PROFILE] Failed to trigger status-changed:', String(pErr));
             }
           }
         }

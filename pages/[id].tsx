@@ -1,14 +1,12 @@
-import Pusher from 'pusher-js';
+import { getSocketClient } from '../lib/socketClient';
 import React, { useEffect, useState, useRef } from 'react';
 import Head from 'next/head';
 import { FaPaperPlane, FaCheck, FaCheckDouble } from 'react-icons/fa';
 import { useRouter } from 'next/router';
 import { useSession } from 'next-auth/react';
 
-// Инициализация Pusher
-const pusherClient = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY!, {
-  cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
-});
+// Инициализация Socket.IO
+const socketClient = typeof window !== 'undefined' ? getSocketClient() : null;
 
 // --- Кружок с overlay play/pause ---
 const VideoCircle: React.FC<{ src: string; poster?: string }> = ({ src, poster }) => {
@@ -359,6 +357,18 @@ const ChatWithFriend: React.FC = () => {
   // for debouncing typing events
   const typingTimeoutRef = useRef<number | null>(null);
 
+  // messageColor for styling — MUST be declared before using in style calculations
+  const [messageColor, setMessageColor] = useState<string | null>(null);
+  useEffect(() => {
+    try {
+      const saved = typeof window !== 'undefined' ? localStorage.getItem('chatMessageColor') : null;
+      if (saved) setMessageColor(saved);
+    } catch (e) {}
+    const onColor = (e: any) => { try { setMessageColor(e?.detail || null); } catch (err) {} };
+    window.addEventListener('chat-color-changed', onColor as EventListener);
+    return () => window.removeEventListener('chat-color-changed', onColor as EventListener);
+  }, []);
+
   // cancelRecording функция-заглушка (реализуй по необходимости)
   const cancelRecording = () => {
     if (mediaRecorder && isRecording) {
@@ -485,7 +495,7 @@ const ChatWithFriend: React.FC = () => {
     }
   };
 
-  // NOTE: single Pusher subscription is handled below (avoid double subscriptions)
+  // NOTE: single Socket.IO subscription is handled below (avoid double subscriptions)
 
   // Отправка события "печатает"
   const sendTypingEvent = () => {
@@ -705,18 +715,24 @@ const ChatWithFriend: React.FC = () => {
   useEffect(() => {
     if (!friend || !friend.id || !chatId) return;
     try {
-      // use the shared pusherClient instance (initialized once at module top)
+      // Set window variables for socketClient adapter to know which channels to subscribe to
+      if (typeof window !== 'undefined') {
+        (window as any).__userId = session?.user?.id;
+        (window as any).__chatId = chatId;
+      }
       
-      // Подписка на канал пользователя для статуса
-      const userChannel = pusherClient.subscribe(`user-${friend.id}`);
+      // use the shared socketClient instance (initialized once at module top)
+      
+      // Join user and chat channels
+      socketClient?.emit('join-user', friend.id);
+      socketClient?.emit('join-chat', chatId);
+      
       const onStatus = (payload: any) => {
         if (!payload || !payload.userId) return;
         setFriend(prev => prev && prev.id === payload.userId ? { ...prev, status: payload.status } : prev);
       };
-      userChannel.bind('status-changed', onStatus);
+      socketClient?.on('status-changed', onStatus);
 
-      // Подписка на канал чата для сообщений
-      const chatChannel = pusherClient.subscribe(`chat-${chatId}`);
       const onNewMessage = (data: any) => {
         // Поддерживаем оба формата: { message: {...} } и прямой объект
         const payload = data?.message ? data.message : data;
@@ -729,7 +745,6 @@ const ChatWithFriend: React.FC = () => {
           audioUrl: payload.audioUrl,
           videoUrl: payload.videoUrl
         };
-
 
         setMessages(prev => {
           // Если сообщение с таким id уже есть — игнорируем (дедупликация)
@@ -763,6 +778,7 @@ const ChatWithFriend: React.FC = () => {
         // Автоматически прокручиваем к новому сообщению
         setTimeout(scrollToBottom, 50);
       };
+
       // Обработка события "печатает"
       const onTyping = (data: { userId: string, name: string }) => {
         try {
@@ -775,8 +791,7 @@ const ChatWithFriend: React.FC = () => {
           console.error('Error handling typing event:', e);
         }
       };
-      chatChannel.bind('new-message', onNewMessage);
-      chatChannel.bind('typing', onTyping);
+
       // viewer-state: { userId, action: 'enter' | 'leave' }
       const onViewer = (data: any) => {
         try {
@@ -788,24 +803,25 @@ const ChatWithFriend: React.FC = () => {
             return next;
           });
         } catch (e) {
-          console.error('[PUSHER] viewer-state handler error', e);
+          console.error('[Socket.IO] viewer-state handler error', e);
         }
       };
-      chatChannel.bind('viewer-state', onViewer);
+
+      socketClient?.on('new-message', onNewMessage);
+      socketClient?.on('typing', onTyping);
+      socketClient?.on('viewer-state', onViewer);
 
       // cleanup
       return () => {
         try {
-          try { userChannel.unbind('status-changed', onStatus); } catch (e) {}
-          try { chatChannel.unbind('new-message', onNewMessage); } catch (e) {}
-          try { chatChannel.unbind('typing', onTyping); } catch (e) {}
-          try { chatChannel.unbind('viewer-state', onViewer); } catch (e) {}
-          try { pusherClient.unsubscribe(`user-${friend.id}`); } catch (e) {}
-          try { pusherClient.unsubscribe(`chat-${chatId}`); } catch (e) {}
+          try { socketClient?.off('status-changed', onStatus); } catch (e) {}
+          try { socketClient?.off('new-message', onNewMessage); } catch (e) {}
+          try { socketClient?.off('typing', onTyping); } catch (e) {}
+          try { socketClient?.off('viewer-state', onViewer); } catch (e) {}
         } catch (e) {}
       };
     } catch (e) {
-      // ignore pusher errors on client
+      // ignore socket.io errors on client
     }
   }, [friend?.id, chatId]);
 
@@ -958,16 +974,6 @@ const ChatWithFriend: React.FC = () => {
   const nameStyle = isMobile
     ? { fontWeight: 600, fontSize: '18px', color: '#e3e8f0', display: 'flex', alignItems: 'center', gap: '6px' }
     : { fontWeight: 600, fontSize: '17px', color: '#e3e8f0', display: 'flex', alignItems: 'center', gap: '6px' };
-  const [messageColor, setMessageColor] = useState<string | null>(null);
-  useEffect(() => {
-    try {
-      const saved = typeof window !== 'undefined' ? localStorage.getItem('chatMessageColor') : null;
-      if (saved) setMessageColor(saved);
-    } catch (e) {}
-    const onColor = (e: any) => { try { setMessageColor(e?.detail || null); } catch (err) {} };
-    window.addEventListener('chat-color-changed', onColor as EventListener);
-    return () => window.removeEventListener('chat-color-changed', onColor as EventListener);
-  }, []);
   const ownBg = messageColor ? `linear-gradient(90deg, ${messageColor} 60%, #1e2a3a 100%)` : 'linear-gradient(90deg,#229ed9 60%,#1e2a3a 100%)';
   const messageStyle = isMobile
   ? { background: ownBg, color: '#fff', padding: '10px 18px', borderRadius: '12px', display: 'inline-block', boxShadow: '0 2px 6px #2222', fontSize: '16px', maxWidth: '80vw', wordBreak: 'break-word' as const, position: 'relative' as 'relative' }

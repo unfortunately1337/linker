@@ -6,7 +6,7 @@ import { useRouter } from "next/router";
 import { signOut } from "next-auth/react";
 import { FaComments, FaUser, FaSignOutAlt, FaRegNewspaper, FaVideo, FaFeatherAlt } from "react-icons/fa";
 import styles from "../styles/Sidebar.module.css"; // создадим CSS для hover и анимаций
-import Pusher from 'pusher-js';
+import { getSocketClient } from '../lib/socketClient';
 import ToastNotification from './ToastNotification';
 
 export default function Sidebar() {
@@ -59,7 +59,7 @@ export default function Sidebar() {
     let lastVisibilityCheckTime = 0;
     const VISIBILITY_CHECK_DEBOUNCE = 5000; // не чаще чем раз в 5 секунд
 
-    // helper to fetch pending count (extracted so we can call it from pusher handler)
+    // helper to fetch pending count (extracted so we can call it from socket.io handler)
     const fetchPending = async () => {
       try {
         // Ensure cookies (next-auth session) are sent with the request
@@ -103,9 +103,16 @@ export default function Sidebar() {
   useEffect(() => {
     const u = getUser();
     if (!u) return;
-    const channelName = `user-${u.id}`;
-    const pusherClient = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY!, { cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER! });
-    const channel = pusherClient.subscribe(channelName);
+    const socketClient = getSocketClient();
+    if (!socketClient) return;
+    
+    // Set window variable for socketClient adapter to know user ID
+    if (typeof window !== 'undefined') {
+      (window as any).__userId = u.id;
+    }
+    
+    socketClient.emit('join-user', u.id);
+    
     const onFriendRequest = (data: any) => {
       try {
   const from = data?.fromLink ? `@${data.fromLink}` : (data?.fromLogin || 'Пользователь');
@@ -159,15 +166,13 @@ export default function Sidebar() {
 
         setToastMsg({ type: 'success', message: `${from} отправил вам заявку в друзья`, actions: [ { label: 'Принять', onClick: accept }, { label: 'Отклонить', onClick: decline, style: { background: '#ff5252' } } ] });
       } catch (e) {
-        console.error('Error handling friend-request pusher event', e);
+        console.error('Error handling friend-request Pusher event', e);
       }
     };
-    channel.bind('friend-request', onFriendRequest);
+    socketClient.on('friend-request', onFriendRequest);
     return () => {
       try {
-        channel.unbind('friend-request', onFriendRequest);
-        pusherClient.unsubscribe(channelName);
-        pusherClient.disconnect();
+        socketClient.off('friend-request', onFriendRequest);
       } catch (e) {}
     };
   }, []);

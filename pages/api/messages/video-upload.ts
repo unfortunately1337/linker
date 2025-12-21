@@ -8,7 +8,7 @@ import prisma from '../../../lib/prisma';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../auth/[...nextauth]';
 // No encryption for video files — store raw files under pages/api/.private_media/video
-import { pusher } from '../../../lib/pusher';
+import { getSocket } from '../../../lib/socket';
 import { uploadLimiter } from '../../../lib/rateLimiter';
 
 export const config = {
@@ -223,7 +223,10 @@ export async function videoUploadHandler(req: NextApiRequest, res: NextApiRespon
       try {
         const payload: any = { id: message.id, sender: userId, text: '', createdAt: message.createdAt, videoUrl, persisted, dbError };
         if (thumbnailUrl) payload.thumbnailUrl = thumbnailUrl;
-        await pusher.trigger(`chat-${chatId}`, 'new-message', payload);
+        const pusher = getSocket();
+        if (pusher) {
+          await pusher.trigger(`chat-${chatId}`, 'new-message', payload);
+        }
       } catch (pErr) {
         console.error('[VIDEO UPLOAD] Pusher trigger failed:', pErr);
       }

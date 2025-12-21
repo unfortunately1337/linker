@@ -5,7 +5,7 @@ import { authOptions } from '../auth/[...nextauth]';
 import { decryptMessage } from '../../../lib/encryption';
 import path from 'path';
 import fs from 'fs';
-import { pusher } from '../../../lib/pusher';
+import { getSocket } from '../../../lib/socket';
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -118,11 +118,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         // Уведомляем подписчиков через Pusher
         try {
           if (msg.chatId) {
-            await pusher.trigger(`chat-${msg.chatId}`, 'message-deleted', {
-              messageId: id,
-              chatId: msg.chatId,
-              deletedBy: session.user.id
-            });
+            const pusher = getSocket();
+            if (pusher) {
+              await pusher.trigger(`chat-${msg.chatId}`, 'message-deleted', {
+                messageId: id,
+                chatId: msg.chatId,
+                deletedBy: session.user.id
+              });
+            }
             console.log('[DELETE MESSAGE][BG] Pusher event sent for chat:', msg.chatId);
           }
         } catch (pErr) {

@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '../../lib/prisma';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from './auth/[...nextauth]';
-import { pusher } from '../../lib/pusher';
+import { getSocket } from '../../lib/socket';
 import { encryptMessage, decryptMessage } from '../../lib/encryption';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -48,7 +48,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
 
       // Fetch newest messages (desc) limited by `limit`, then reverse to return ascending order.
-      const msgs = await prisma.message.findMany({ where, orderBy: { createdAt: 'desc' }, take: limit });
+      const msgs = await prisma.message.findMany({ 
+        where, 
+        orderBy: { createdAt: 'desc' }, 
+        take: limit,
+        include: {
+          reactions: {
+            include: {
+              user: { select: { id: true } }
+            }
+          }
+        }
+      } as any);
       const messages = msgs.reverse();
 
       // Decrypt text per-message; keep others if one fails.
@@ -62,7 +73,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             text = '[Ошибка расшифровки]';
           }
         }
-        return { ...msg, text };
+        
+        // Group reactions by emoji
+        const reactionsMap: Record<string, string[]> = {};
+        if (msg.reactions) {
+          msg.reactions.forEach((reaction: any) => {
+            if (!reactionsMap[reaction.emoji]) {
+              reactionsMap[reaction.emoji] = [];
+            }
+            reactionsMap[reaction.emoji].push(reaction.user.id);
+          });
+        }
+        
+        const reactions = Object.entries(reactionsMap).map(([emoji, users]) => ({
+          emoji,
+          users,
+          count: users.length
+        }));
+        
+        return { ...msg, text, reactions };
       });
 
       // hasMore -> true when we returned 'limit' items (there may be more older messages)
@@ -148,7 +177,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         videoUrl: (message as any).videoUrl || null,
       } as any;
 
-      // Параллельно - обновления и pusher
+      // Параллельно - обновления и socket.io
       (async () => {
         try {
           const recipients = chat.users?.filter((u: any) => u.id !== user.id) || [];
@@ -166,21 +195,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           };
 
           // Trigger chat channel and per-user channels in parallel (no plaintext)
-          const pusherPromises: Promise<any>[] = [];
+          const pusher = getSocket();
           try {
-            pusherPromises.push(pusher.trigger(`chat-${chatId}`, 'new-message', messageMeta));
+            if (pusher) {
+              await pusher.trigger(`chat-${chatId}`, 'new-message', messageMeta);
+            }
           } catch (e) {
-            console.error('[MESSAGES API] Failed to trigger chat pusher', e);
+            console.error('[MESSAGES API] Failed to trigger chat message', e);
           }
           recipients.forEach((r: any) => {
             try {
-              pusherPromises.push(pusher.trigger(`user-${r.id}`, 'new-message', userPayload));
+              if (pusher) {
+                pusher.trigger(`user-${r.id}`, 'new-message', userPayload).catch((e: any) => {
+                  console.error('[MESSAGES API] Failed to trigger user notification for', r.id, e);
+                });
+              }
             } catch (e) {
               console.error('[MESSAGES API] Failed to trigger user notification for', r.id, e);
             }
           });
 
-          await Promise.all([ Promise.all(upserts), Promise.all(pusherPromises) ]);
+          await Promise.all(upserts);
         } catch (bgErr) {
           console.error('[MESSAGES API][POST][BG] background error', bgErr);
         }

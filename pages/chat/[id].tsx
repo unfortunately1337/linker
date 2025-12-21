@@ -1,9 +1,8 @@
-import Pusher from 'pusher-js';
-import { getPusherClient } from '../../lib/pusher';
+import { getSocketClient } from '../../lib/socketClient';
 import { getFriendDisplayName } from '../../lib/hooks';
 
-// Use shared pusher client helper (returns null on server)
-const pusherClient = typeof window !== 'undefined' ? getPusherClient() : null;
+// Use shared socket client helper (returns null on server)
+const socketClient = typeof window !== 'undefined' ? getSocketClient() : null;
 import React, { useEffect, useState, useRef } from 'react';
 import Head from 'next/head';
 import { FaPaperPlane } from 'react-icons/fa';
@@ -14,7 +13,7 @@ import { useCall } from '../../components/CallProvider';
 import MessageStatus from '../../components/MessageStatus';
 import styles from '../../styles/Chat.module.css';
 
-// Инициализация Pusher
+// Инициализация Socket.IO
 const VoiceMessage: React.FC<{ audioUrl: string; isOwn?: boolean }> = ({ audioUrl, isOwn }) => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [duration, setDuration] = useState<number>(0);
@@ -422,7 +421,7 @@ const ChatWithFriend: React.FC = () => {
     }
   };
 
-  // NOTE: single Pusher subscription is handled below (avoid double subscriptions)
+  // NOTE: single Socket.IO subscription is handled below (avoid double subscriptions)
 
   // Отправка события "печатает"
   const sendTypingEvent = () => {
@@ -698,12 +697,17 @@ const ChatWithFriend: React.FC = () => {
   useEffect(() => {
     if (!friend || !friend.id || !chatId) return;
     try {
-      // use the shared pusherClient instance (initialized once at module top)
+      // Set window variables for socketClient adapter to know which channels to subscribe to
+      if (typeof window !== 'undefined') {
+        (window as any).__userId = session?.user?.id;
+        (window as any).__chatId = chatId;
+      }
       
-      // Подписка на канал пользователя для статуса
-      const userChannel = pusherClient.subscribe(`user-${friend.id}`);
-      // Подписка на channel чата для новых сообщений
-      const chatChannel = pusherClient.subscribe(`chat-${chatId}`);
+      // use the shared socketClient instance (initialized once at module top)
+      
+      // Join user and chat channels via socket events
+      socketClient?.emit('join-user', friend.id);
+      socketClient?.emit('join-chat', chatId);
 
       const onStatus = (payload: any) => {
         if (!payload || !payload.userId) return;
@@ -824,9 +828,7 @@ const ChatWithFriend: React.FC = () => {
           console.error('Error handling message-deleted event', e);
         }
       };
-    chatChannel.bind('new-message', onNewMessage);
-    chatChannel.bind('typing', onTyping);
-    chatChannel.bind('message-deleted', onMessageDeleted);
+
       const onViewer = (data: any) => {
         try {
           if (!data || !data.userId) return;
@@ -837,20 +839,19 @@ const ChatWithFriend: React.FC = () => {
             return next;
           });
         } catch (e) {
-          console.error('[PUSHER] viewer-state handler error', e);
+          console.error('[Socket.IO] viewer-state handler error', e);
         }
       };
-      chatChannel.bind('viewer-state', onViewer);
 
       // Обработчик для изменения статуса сообщения (например, при прочтении)
       const onMessageStatusChanged = (data: any) => {
         try {
           if (!data || !data.messageId) return;
-          console.log('[PUSHER] message-status-changed event received:', data);
+          console.log('[Socket.IO] message-status-changed event received:', data);
           setMessages(prev => {
             const updated = prev.map(m => {
               if (m.id === data.messageId) {
-                console.log('[PUSHER] Updating message status:', m.id, 'from', m.status, 'to', data.status);
+                console.log('[Socket.IO] Updating message status:', m.id, 'from', m.status, 'to', data.status);
                 return { ...m, status: data.status };
               }
               return m;
@@ -858,27 +859,31 @@ const ChatWithFriend: React.FC = () => {
             return updated;
           });
         } catch (e) {
-          console.error('[PUSHER] message-status-changed handler error', e);
+          console.error('[Socket.IO] message-status-changed handler error', e);
         }
       };
-      chatChannel.bind('message-status-changed', onMessageStatusChanged);
 
+      socketClient?.on('status-changed', onStatus);
+      socketClient?.on('new-message', onNewMessage);
+      socketClient?.on('typing', onTyping);
+      socketClient?.on('message-deleted', onMessageDeleted);
+      socketClient?.on('viewer-state', onViewer);
+      socketClient?.on('message-status-changed', onMessageStatusChanged);
+      
       // cleanup
       return () => {
         try {
           try { stopTyping(); } catch (e) {}
-          try { userChannel.unbind('status-changed', onStatus); } catch (e) {}
-          try { chatChannel.unbind('new-message', onNewMessage); } catch (e) {}
-          try { chatChannel.unbind('typing', onTyping); } catch (e) {}
-          try { chatChannel.unbind('message-deleted', onMessageDeleted); } catch (e) {}
-          try { chatChannel.unbind('viewer-state', onViewer); } catch (e) {}
-          try { chatChannel.unbind('message-status-changed', onMessageStatusChanged); } catch (e) {}
-          try { pusherClient.unsubscribe(`user-${friend.id}`); } catch (e) {}
-          try { pusherClient.unsubscribe(`chat-${chatId}`); } catch (e) {}
+          try { socketClient?.off('status-changed', onStatus); } catch (e) {}
+          try { socketClient?.off('new-message', onNewMessage); } catch (e) {}
+          try { socketClient?.off('typing', onTyping); } catch (e) {}
+          try { socketClient?.off('message-deleted', onMessageDeleted); } catch (e) {}
+          try { socketClient?.off('viewer-state', onViewer); } catch (e) {}
+          try { socketClient?.off('message-status-changed', onMessageStatusChanged); } catch (e) {}
         } catch (e) {}
       };
     } catch (e) {
-      // ignore pusher errors on client
+      // ignore socket.io errors on client
     }
   }, [friend?.id, chatId]);
 
@@ -960,12 +965,12 @@ const ChatWithFriend: React.FC = () => {
           // mark temp message as failed visually
           setMessages((prev: any[]) => prev.map((msg: any) => msg.id === tempId ? { ...msg, _failed: true } : msg));
         }
-  // If a server message with the same id already exists (arrived via pusher),
+  // If a server message with the same id already exists (arrived via socket.io),
   // remove the temporary message instead of replacing it to avoid duplicates.
         setMessages((prev: any[]) => {
           try {
             if (prev.some((m: any) => m.id === serverMsg.id)) {
-              // server message already present (pusher delivered it): remove temp
+              // server message already present (socket.io delivered it): remove temp
               return prev.filter((m: any) => m.id !== tempId);
             }
             // Otherwise replace the temp message with the server-provided message data,

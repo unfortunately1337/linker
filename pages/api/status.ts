@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from './auth/[...nextauth]';
 import prisma from '../../lib/prisma';
-import { pusher } from '../../lib/pusher';
+import { getSocket } from '../../lib/socket';
 
 type Body = { status?: 'online' | 'offline' | 'dnd' } | undefined;
 
@@ -29,8 +29,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // If `status` column doesn't exist, ignore DB update
     }
 
-    // Trigger pusher event on user-specific channel
-    await pusher.trigger(`user-${session.user.id}`, 'status-changed', { userId: session.user.id, status });
+    // Trigger event on user-specific channel via Pusher
+    const pusher = getSocket();
+    if (pusher) {
+      await pusher.trigger(`user-${session.user.id}`, 'status-changed', { userId: session.user.id, status });
+    }
 
     // Optionally trigger on chat channels where this user participates could be implemented later
     return res.status(200).json({ ok: true });

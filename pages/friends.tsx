@@ -3,10 +3,11 @@ import { getUser } from "../lib/session";
 import { getFriendDisplayName } from "../lib/hooks";
 import Sidebar from "../components/Sidebar";
 import ToastNotification from "../components/ToastNotification";
-import { FiSearch, FiUserPlus, FiCheck, FiX } from "react-icons/fi";
+import { FiSearch, FiUserPlus, FiUsers, FiX } from "react-icons/fi";
 import styles from '../styles/Friends.module.css';
 
 export default function FriendsPage() {
+  const [activeTab, setActiveTab] = useState<'friends' | 'search' | 'requests'>('friends');
   // Отправить заявку в друзья
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const sendRequest = async (friendId: string) => {
@@ -129,131 +130,204 @@ export default function FriendsPage() {
 
   return (
     <div className={styles.friendsPage}>
-      <div className={styles.header}>
-        <h2 className={styles.title}>Меню друзей</h2>
-        <p className={styles.subtitle}>Поиск и заявки, взаимная дружба создана для общения в чатах</p>
-      </div>
-      {toast && (
-        <ToastNotification
-          type={toast.type}
-          message={toast.message}
-          duration={2500}
-          onClose={() => setToast(null)}
-        />
-      )}
-      <div className={styles.layout}>
-        <div className={styles.grid}>
-          <div className={`${styles.panel}`}>
-            <div className={styles.panelHeader}>
-              <FiSearch style={{ fontSize: 22, color: '#4fc3f7' }} />
-              <div className={styles.panelTitle}>Поиск друзей</div>
-            </div>
-            <div className={styles.searchRow}>
-              <input
-                type="text"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="Поиск по линку или имени"
-                className={styles.searchInput}
-              />
-              <button onClick={() => setSearch('')} className={styles.clearBtn}>Очистить</button>
-            </div>
+      <Sidebar />
+      <div className={styles.mainContent}>
+        <div className={styles.header}>
+          <h2 className={styles.title}>Друзья</h2>
+          <p className={styles.subtitle}>Найдите новых друзей и управляйте заявками</p>
+        </div>
 
-            <div>
-              {loading && <div className={styles.loading}>Поиск...</div>}
-              {Array.isArray(searchResult) && searchResult.length === 0 && !loading && (
-                <div className={styles.empty}></div>
+        {toast && (
+          <ToastNotification
+            type={toast.type}
+            message={toast.message}
+            duration={2500}
+            onClose={() => setToast(null)}
+          />
+        )}
+
+        {/* Вкладки */}
+        <div className={styles.tabsContainer}>
+          <button
+            className={`${styles.tab} ${activeTab === 'friends' ? styles.active : ''}`}
+            onClick={() => setActiveTab('friends')}
+          >
+            <FiUsers size={20} />
+            <span>Мои друзья ({friendsSafe.length})</span>
+          </button>
+          <button
+            className={`${styles.tab} ${activeTab === 'search' ? styles.active : ''}`}
+            onClick={() => setActiveTab('search')}
+          >
+            <FiSearch size={20} />
+            <span>Поиск</span>
+          </button>
+          <button
+            className={`${styles.tab} ${activeTab === 'requests' ? styles.active : ''}`}
+            onClick={() => setActiveTab('requests')}
+          >
+            <FiUserPlus size={20} />
+            <span>Заявки ({requests.length})</span>
+          </button>
+        </div>
+
+        {/* Содержимое вкладок */}
+        <div className={styles.tabContent}>
+          {/* Вкладка: Мои друзья */}
+          {activeTab === 'friends' && (
+            <div className={styles.friendsList}>
+              {friendsSafe.length > 0 ? (
+                <div className={styles.grid}>
+                  {friendsSafe.map(friend => (
+                    <div key={friend.id} className={styles.friendCard}>
+                      <div className={styles.friendAvatar}>
+                        <img src={friend.avatar || '/window.svg'} alt={friend.login} />
+                        {friend.status === 'dnd' ? (
+                          <img src="/moon-dnd.svg" alt="dnd" className={styles.statusIcon} />
+                        ) : (
+                          <span className={styles.statusDot} style={{ background: friend.status === 'online' ? '#1ed760' : '#888' }} />
+                        )}
+                      </div>
+                      <div className={styles.friendInfo}>
+                        <div className={styles.friendName}>
+                          {getFriendDisplayName(friend.id, friend.link ? `@${friend.link}` : friend.login)}
+                        </div>
+                        {friend.description && <div className={styles.friendDesc}>{friend.description}</div>}
+                      </div>
+                      <button onClick={() => window.location.href = `/chat/${friend.id}`} className={styles.btnChat}>
+                        Написать
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className={styles.empty}>
+                  <FiUsers size={48} />
+                  <p>У вас еще нет друзей</p>
+                  <p style={{ fontSize: 14, color: '#888' }}>Используйте поиск для добавления новых друзей</p>
+                </div>
               )}
+            </div>
+          )}
+
+          {/* Вкладка: Поиск */}
+          {activeTab === 'search' && (
+            <div className={styles.searchPanel}>
+              <div className={styles.searchWrapper}>
+                <input
+                  type="text"
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  placeholder="Поиск по @линку или имени..."
+                  className={styles.searchInput}
+                  autoFocus
+                />
+                {search && (
+                  <button onClick={() => setSearch('')} className={styles.clearBtn}>
+                    <FiX size={18} />
+                  </button>
+                )}
+              </div>
+
+              {loading && <div className={styles.loading}>Поиск...</div>}
+              
+              {Array.isArray(searchResult) && searchResult.length === 0 && !loading && search && (
+                <div className={styles.empty}>
+                  <FiSearch size={48} />
+                  <p>Ничего не найдено</p>
+                </div>
+              )}
+
               {Array.isArray(searchResult) && searchResult.length > 0 && (
-                <div className={styles.results}>
+                <div className={styles.searchResults}>
                   {searchResult.map(foundUser => (
-                    <div key={foundUser.id} className={styles.resultItem}>
-                      <div className={styles.avatarWrap}>
-                        <img src={foundUser.avatar || '/window.svg'} alt="avatar" className={styles.avatar} />
+                    <div key={foundUser.id} className={styles.searchResultCard}>
+                      <div className={styles.resultAvatar}>
+                        <img src={foundUser.avatar || '/window.svg'} alt={foundUser.login} />
                         {foundUser.status === 'dnd' ? (
-                          <img src="/moon-dnd.svg" alt="dnd" style={{ position: 'absolute', left: 36, top: 36, width: 16, height: 16 }} />
+                          <img src="/moon-dnd.svg" alt="dnd" className={styles.statusIcon} />
                         ) : (
                           <span className={styles.statusDot} style={{ background: foundUser.status === 'online' ? '#1ed760' : '#888' }} />
                         )}
                       </div>
-                      <div className={styles.userInfo}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <div className={styles.username}>{getFriendDisplayName(foundUser.id, foundUser.link ? `@${foundUser.link}` : foundUser.login)}</div>
-                          <img src={`/role-icons/${foundUser.role || 'user'}.svg`} alt={foundUser.role || 'user'} style={{ width: 16, height: 16 }} />
+                      <div className={styles.resultInfo}>
+                        <div className={styles.resultName}>
+                          {getFriendDisplayName(foundUser.id, foundUser.link ? `@${foundUser.link}` : foundUser.login)}
                         </div>
-                        <div className={styles.userMeta}>{foundUser.description || ''}</div>
+                        {foundUser.description && <div className={styles.resultDesc}>{foundUser.description}</div>}
                       </div>
-                      <div className={styles.actions}>
+                      <div className={styles.resultAction}>
                         {foundUser.isFriend ? (
-                          <div style={{ padding: '8px 12px', borderRadius: 10, background: 'rgba(255,255,255,0.03)', color: '#bfc9cf' }}>Уже друг</div>
-                        ) : (foundUser.id === user?.id) ? (
-                          <div style={{ color: '#4fc3f7', fontWeight: 700 }}>Это вы</div>
+                          <div className={styles.btnAlreadyFriend}>Друг</div>
+                        ) : foundUser.id === user?.id ? (
+                          <div className={styles.btnYourself}>Это вы</div>
                         ) : (
-                          <button onClick={() => sendRequest(foundUser.id)} className={styles.btnPrimary}>Добавить</button>
+                          <button onClick={() => sendRequest(foundUser.id)} className={styles.btnAdd}>
+                            <FiUserPlus size={18} />
+                            Добавить
+                          </button>
                         )}
                       </div>
                     </div>
                   ))}
                 </div>
               )}
-            </div>
-          </div>
 
-          <div className={`${styles.panel} ${styles.secondaryPanel}`}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-              <FiUserPlus style={{ fontSize: 20, color: '#4fc3f7' }} />
-              <div className={styles.panelTitle}>Входящие заявки</div>
+              {!search && (
+                <div className={styles.empty}>
+                  <FiSearch size={48} />
+                  <p>Начните поиск</p>
+                  <p style={{ fontSize: 14, color: '#888' }}>Введите @линк или имя пользователя</p>
+                </div>
+              )}
             </div>
-            <div className={styles.requestsList}>
-              {Array.isArray(requests) && requests.length > 0 ? requests.map(r => (
-                r && typeof r.login === 'string' ? (
-                  <div key={r.id} className={styles.requestItem}>
-                    <div style={{ position: 'relative' }}>
-                      <img src={r.avatar || '/window.svg'} alt="avatar" style={{ width: 46, height: 46, borderRadius: '50%', objectFit: 'cover', boxShadow: '0 6px 18px rgba(2,6,23,0.6)' }} />
-                      {r.status === 'dnd' ? (
-                        <img src="/moon-dnd.svg" alt="dnd" style={{ position: 'absolute', left: 30, top: 30, width: 14, height: 14 }} />
-                      ) : (
-                        <span style={{ position: 'absolute', left: 32, top: 32, width: 9, height: 9, borderRadius: '50%', background: r.status === 'online' ? '#1ed760' : '#888', border: '2px solid #0f1113' }} />
-                      )}
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div style={{ color: '#fff', fontWeight: 700, cursor: 'pointer' }} onClick={() => window.location.href = `/profile/${r.id}`}>{getFriendDisplayName(r.id, r.link ? `@${r.link}` : r.login)}</div>
-                        <img src={`/role-icons/${r.role || 'user'}.svg`} alt={r.role || 'user'} style={{ width: 16, height: 16 }} />
+          )}
+
+          {/* Вкладка: Входящие заявки */}
+          {activeTab === 'requests' && (
+            <div className={styles.requestsPanel}>
+              {Array.isArray(requests) && requests.length > 0 ? (
+                <div className={styles.requestsList}>
+                  {requests.map(r => (
+                    r && typeof r.login === 'string' ? (
+                      <div key={r.id} className={styles.requestCard}>
+                        <div className={styles.requestAvatar}>
+                          <img src={r.avatar || '/window.svg'} alt={r.login} />
+                          {r.status === 'dnd' ? (
+                            <img src="/moon-dnd.svg" alt="dnd" className={styles.statusIcon} />
+                          ) : (
+                            <span className={styles.statusDot} style={{ background: r.status === 'online' ? '#1ed760' : '#888' }} />
+                          )}
+                        </div>
+                        <div className={styles.requestInfo}>
+                          <div className={styles.requestName}>
+                            {getFriendDisplayName(r.id, r.link ? `@${r.link}` : r.login)}
+                          </div>
+                          {r.description && <div className={styles.requestDesc}>{r.description}</div>}
+                        </div>
+                        <div className={styles.requestActions}>
+                          <button onClick={() => handleAccept(r.id)} className={styles.btnAccept}>
+                            Принять
+                          </button>
+                          <button onClick={() => handleDecline(r.id)} className={styles.btnDecline}>
+                            Отклонить
+                          </button>
+                        </div>
                       </div>
-                      <div style={{ color: '#9fbfe6', fontSize: 13 }}>{r.description || ''}</div>
-                    </div>
-                    <div className={styles.requestActions}>
-                      <button title="Принять" onClick={() => handleAccept(r.id)} className={styles.acceptBtn}>Принять</button>
-                      <button title="Отклонить" onClick={() => handleDecline(r.id)} className={styles.declineBtn}>Отклонить</button>
-                    </div>
-                  </div>
-                ) : null
-              )) : <div className={styles.empty}>Нет входящих заявок</div>}
+                    ) : null
+                  ))}
+                </div>
+              ) : (
+                <div className={styles.empty}>
+                  <FiUserPlus size={48} />
+                  <p>Нет входящих заявок</p>
+                  <p style={{ fontSize: 14, color: '#888' }}>Когда люди отправят вам заявки, они появятся здесь</p>
+                </div>
+              )}
             </div>
-          </div>
+          )}
         </div>
       </div>
-      <style jsx global>{`
-        /* Remove panel backgrounds but preserve layout/padding/content */
-        .friend-panel { background: transparent !important; box-shadow: none !important; border-radius: 0 !important; }
-        /* Responsive: stack panels on mobile */
-        .friends-grid { display: flex; gap: 20px; }
-        /* Mobile adjustments: make inner controls full width and stack neatly */
-        .friend-panel input { width: 100% !important; box-sizing: border-box; }
-        .friend-panel button { min-width: 0; }
-        .friend-panel .search-result-item { display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
-        @media (max-width: 820px) {
-          .friends-grid { flex-direction: column; width: 100% !important; gap: 12px; }
-          .friends-grid > div { width: 100% !important; }
-        }
-        @media (max-width: 480px) {
-          h2 { font-size: 28px !important; margin: 28px 0 16px 0 !important; }
-          .friend-panel { padding: 12px !important; }
-          .friend-panel .search-result-item > div:last-child { display: flex; gap: 8px; flex-wrap: wrap; }
-          .friend-panel .search-result-item button { flex: 1 1 auto; }
-        }
-      `}</style>
     </div>
   );
 }

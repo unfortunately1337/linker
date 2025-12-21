@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../auth/[...nextauth]';
-import { pusher } from '../../../lib/pusher';
+import { getSocket } from '../../../lib/socket';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const session = await getServerSession(req, res, authOptions);
@@ -14,9 +14,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const { chatId } = req.body;
   if (!chatId) return res.status(400).json({ error: 'chatId required' });
   // Отправить событие "typing" через Pusher
-  await pusher.trigger(`chat-${chatId}`, 'typing', {
-    userId: session.user.id,
-    name: session.user.name || '',
-  });
+  const pusher = getSocket();
+  if (pusher) {
+    await pusher.trigger(`chat-${chatId}`, 'typing', {
+      userId: session.user.id,
+      name: session.user.name || '',
+    });
+  }
   return res.status(200).json({ ok: true });
 }
