@@ -646,6 +646,57 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => { if (t) clearInterval(t); };
   }, [call?.status, call?.startedAt]);
 
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      try {
+        // Stop any active audio streams
+        if (audioStreamRef.current) {
+          audioStreamRef.current.getTracks().forEach(t => {
+            try { t.stop(); } catch (e) {}
+          });
+          audioStreamRef.current = null;
+        }
+        // Close peer connection
+        if (pcRef.current) {
+          try {
+            pcRef.current.getSenders().forEach(s => {
+              try { s.track && s.track.stop(); } catch (e) {}
+            });
+          } catch (e) {}
+          try { pcRef.current.close(); } catch (e) {}
+          pcRef.current = null;
+        }
+        // Stop local stream
+        if (localStreamRef.current) {
+          localStreamRef.current.getTracks().forEach(t => {
+            try { t.stop(); } catch (e) {}
+          });
+          localStreamRef.current = null;
+        }
+        // Stop remote stream
+        if (remoteStreamRef.current) {
+          remoteStreamRef.current.getTracks().forEach(t => {
+            try { t.stop(); } catch (e) {}
+          });
+          remoteStreamRef.current = null;
+        }
+        // Stop ringtone
+        if (ringtoneRef.current) {
+          try { stopRingtone(ringtoneRef.current); } catch (e) {}
+          ringtoneRef.current = null;
+        }
+        // Clear timeout
+        if (callTimeoutRef.current) {
+          clearTimeout(callTimeoutRef.current);
+          callTimeoutRef.current = null;
+        }
+      } catch (e) {
+        console.error('Cleanup error:', e);
+      }
+    };
+  }, []);
+
   return (
     <CallContext.Provider value={value}>
       {children}

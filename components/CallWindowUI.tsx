@@ -66,10 +66,11 @@ export const CallWindow: React.FC<CallWindowProps> = ({
     let animationId: number;
     let audioContext: AudioContext | null = null;
     let analyser: AnalyserNode | null = null;
+    let stream: MediaStream | null = null;
 
     const startAudioMonitoring = async () => {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
         const source = audioContext.createMediaStreamSource(stream);
         analyser = audioContext.createAnalyser();
@@ -95,8 +96,19 @@ export const CallWindow: React.FC<CallWindowProps> = ({
 
     return () => {
       cancelAnimationFrame(animationId);
+      // Stop all audio tracks from monitoring stream
+      if (stream) {
+        stream.getTracks().forEach(track => {
+          try {
+            track.stop();
+          } catch (e) {}
+        });
+      }
+      // Close audio context
       if (audioContext) {
-        audioContext.close();
+        try {
+          audioContext.close();
+        } catch (e) {}
       }
     };
   }, [isActive]);
