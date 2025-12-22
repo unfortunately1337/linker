@@ -352,19 +352,18 @@ export default function Sidebar() {
         </div>
 
         <nav className={styles.nav}>
-          <button 
-            onClick={() => {
-              setShowChatList(!showChatList);
-              router.push('/chat');
-            }}
-            className={styles.navButton}
-            title="Открыть чаты"
-          >
-            <span className={styles.iconWrapper}>
-              <FaComments />
-            </span>
-            {open && <span className={styles.navText}>Чат</span>}
-          </button>
+          <SidebarLink
+            href="/chat"
+            icon={
+              <span className={styles.iconWrapper}>
+                <FaComments />
+              </span>
+            }
+            text="Чат"
+            open={open}
+            onClick={() => setShowChatList(!showChatList)}
+            isMobile={isMobile}
+          />
           <SidebarLink
             href="/friends"
             icon={

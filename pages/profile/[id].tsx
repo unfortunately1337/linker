@@ -237,6 +237,29 @@ export default function UserProfile() {
             gap: 8px !important;
           }
         }
+        /* Minimalist action buttons for friend profile */
+        .profile-action-group { display:flex; gap:12px; justify-content:center; align-items:center; }
+        .profile-action-btn {
+          --bg: rgba(255,255,255,0.03);
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          padding: 10px 14px;
+          border-radius: 10px;
+          background: var(--bg);
+          border: 1px solid rgba(255,255,255,0.06);
+          color: #e6eef6;
+          font-weight: 600;
+          font-size: 13px;
+          cursor: pointer;
+          transition: background .14s ease, transform .12s ease, border-color .12s ease;
+          outline: none;
+        }
+        .profile-action-btn:hover { background: rgba(255,255,255,0.06); transform: translateY(-2px); border-color: rgba(255,255,255,0.10); }
+        .profile-action-btn:active { transform: translateY(0); }
+        .profile-action-btn.profile-action-icon-only { padding: 10px; width:44px; justify-content:center; }
+        .profile-action-icon { display:inline-flex; width:18px; height:18px; align-items:center; justify-content:center; color:inherit; }
+        .profile-action-btn.muted { opacity: 0.78; }
       `}</style>
       {/* Settings button absolutely top-right for the current user (no border) */}
       {session?.user && (session.user as any).id === user.id && (
@@ -391,72 +414,32 @@ export default function UserProfile() {
           {isFriend && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, marginTop: 12, position: 'relative', width: '100%' }}>
               <div style={{ fontSize: 13, color: '#64b5f6', fontWeight: 500 }}></div>
-              <div style={{ display: 'flex', gap: 12, justifyContent: 'center', width: '100%', flexWrap: 'wrap' }}>
+              <div className="profile-action-group" style={{ width: '100%', flexWrap: 'wrap' }}>
                 <button
                   onClick={() => router.push(`/chat/${user.id}`)}
                   title="Открыть чат"
-                  style={{
-                    padding: '12px 20px',
-                    background: 'rgba(255, 255, 255, 0.05)',
-                    border: '1px solid rgba(255, 255, 255, 0.08)',
-                    borderRadius: 10,
-                    color: '#fff',
-                    fontWeight: 500,
-                    fontSize: 13,
-                    cursor: 'pointer',
-                    transition: 'all 150ms ease',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 8,
-                    outline: 'none',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
-                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.12)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
-                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
-                  }}
-                  >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                  </svg>
+                  className="profile-action-btn"
+                  aria-label="Open chat"
+                >
+                  <span className="profile-action-icon">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                    </svg>
+                  </span>
                   Чат
                 </button>
 
                 <button
                   onClick={() => toggleNotifications()}
                   title={notificationsMuted ? "Включить уведомления" : "Выключить уведомления"}
-                  style={{
-                    padding: '12px 20px',
-                    background: 'rgba(255, 255, 255, 0.05)',
-                    border: '1px solid rgba(255, 255, 255, 0.08)',
-                    borderRadius: 10,
-                    color: '#fff',
-                    fontWeight: 500,
-                    fontSize: 13,
-                    cursor: 'pointer',
-                    transition: 'all 150ms ease',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 8,
-                    outline: 'none',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
-                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.12)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
-                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
-                  }}
+                  className={`profile-action-btn ${notificationsMuted ? 'muted' : ''}`}
+                  aria-label="Toggle notifications"
                 >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 2a5 5 0 0 0-5 5v3.1l-1.7 1.7A1 1 0 0 0 6 15h12a1 1 0 0 0 .7-1.7L17 10.1V7a5 5 0 0 0-5-5zm3.5 15.5a3.5 3.5 0 0 1-7 0" />
-                  </svg>
+                  <span className="profile-action-icon">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M12 2a5 5 0 0 0-5 5v3.1l-1.7 1.7A1 1 0 0 0 6 15h12a1 1 0 0 0 .7-1.7L17 10.1V7a5 5 0 0 0-5-5zm3.5 15.5a3.5 3.5 0 0 1-7 0" />
+                    </svg>
+                  </span>
                   Звук
                 </button>
 
@@ -468,70 +451,30 @@ export default function UserProfile() {
                     } catch (e) { console.warn('startCall failed', e); }
                   }}
                   title="Начать звонок"
-                  style={{
-                    padding: '12px 20px',
-                    background: 'rgba(255, 255, 255, 0.05)',
-                    border: '1px solid rgba(255, 255, 255, 0.08)',
-                    borderRadius: 10,
-                    color: '#fff',
-                    fontWeight: 500,
-                    fontSize: 13,
-                    cursor: 'pointer',
-                    transition: 'all 150ms ease',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 8,
-                    outline: 'none',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
-                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.12)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
-                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
-                  }}
+                  className="profile-action-btn"
+                  aria-label="Start call"
                 >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M22 16.9v3c0 1.1-.9 2-2 2-7.2 0-13-5.8-13-13 0-1.1.9-2 2-2h3c.6 0 1.1.4 1.3 1l.7 1.6c.2.5.6.9 1.1 1.2l1.3.7c.5.2.9.7 1.1 1.2l.7 1.6c.2.6.7 1 1.3 1h3c1.1 0 2 .9 2 2z" />
-                  </svg>
+                  <span className="profile-action-icon">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M6.62 10.79a15.055 15.055 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24c1.12.37 2.33.57 3.56.57a1 1 0 011 1V20a1 1 0 01-1 1C10.07 21 3 13.93 3 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.23.2 2.43.57 3.56.09.33-.04.69-.33.88l-2.12 1.06z" />
+                    </svg>
+                  </span>
                   Звонок
                 </button>
 
                 <button
                   onClick={() => setShowFriendMenu(!showFriendMenu)}
                   title="Ещё"
-                  style={{
-                    padding: '12px 20px',
-                    background: 'rgba(255, 255, 255, 0.05)',
-                    border: '1px solid rgba(255, 255, 255, 0.08)',
-                    borderRadius: 10,
-                    color: '#fff',
-                    fontWeight: 500,
-                    fontSize: 13,
-                    cursor: 'pointer',
-                    transition: 'all 150ms ease',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 8,
-                    outline: 'none',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
-                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.12)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
-                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
-                  }}
+                  className="profile-action-btn"
+                  aria-label="More"
                 >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                    <circle cx="12" cy="6" r="2" />
-                    <circle cx="12" cy="12" r="2" />
-                    <circle cx="12" cy="18" r="2" />
-                  </svg>
+                  <span className="profile-action-icon">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                      <circle cx="12" cy="6" r="2" />
+                      <circle cx="12" cy="12" r="2" />
+                      <circle cx="12" cy="18" r="2" />
+                    </svg>
+                  </span>
                   Ещё
                 </button>
               </div>
