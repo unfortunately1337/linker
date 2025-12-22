@@ -13,6 +13,7 @@ export default function Sidebar() {
   const router = useRouter();
   const [user, setUser] = useState(getUser());
   const [open, setOpen] = useState(false);
+  const [showChatList, setShowChatList] = useState(false);
   const [pendingCount, setPendingCount] = useState<number | null>(null);
   // SSR-safe isMobile detection
   const [isMobile, setIsMobile] = useState(false);
@@ -59,7 +60,7 @@ export default function Sidebar() {
     let lastVisibilityCheckTime = 0;
     const VISIBILITY_CHECK_DEBOUNCE = 5000; // не чаще чем раз в 5 секунд
 
-    // helper to fetch pending count (extracted so we can call it from socket.io handler)
+    // helper to fetch pending count (extracted so we can call it from Pusher handler)
     const fetchPending = async () => {
       try {
         // Ensure cookies (next-auth session) are sent with the request
@@ -110,8 +111,6 @@ export default function Sidebar() {
     if (typeof window !== 'undefined') {
       (window as any).__userId = u.id;
     }
-    
-    socketClient.emit('join-user', u.id);
     
     const onFriendRequest = (data: any) => {
       try {
@@ -353,7 +352,19 @@ export default function Sidebar() {
         </div>
 
         <nav className={styles.nav}>
-          <SidebarLink href="/chat" icon={<FaComments />} text="Чат" open={open} isMobile={isMobile} />
+          <button 
+            onClick={() => {
+              setShowChatList(!showChatList);
+              router.push('/chat');
+            }}
+            className={styles.navButton}
+            title="Открыть чаты"
+          >
+            <span className={styles.iconWrapper}>
+              <FaComments />
+            </span>
+            {open && <span className={styles.navText}>Чат</span>}
+          </button>
           <SidebarLink
             href="/friends"
             icon={

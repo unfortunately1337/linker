@@ -13,12 +13,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
   const { chatId } = req.body;
   if (!chatId) return res.status(400).json({ error: 'chatId required' });
-  // Отправить событие "typing" через Pusher
+  
+  // Отправить событие "typing-indicator" через Pusher
   const pusher = getSocket();
   if (pusher) {
-    await pusher.trigger(`chat-${chatId}`, 'typing', {
+    await pusher.trigger(`chat-${chatId}`, 'typing-indicator', {
       userId: session.user.id,
       name: session.user.name || '',
+      timestamp: Date.now()
     });
   }
   return res.status(200).json({ ok: true });

@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useSession } from 'next-auth/react';
+import { getPusherClient } from '../lib/pusher';
 import { getSocketClient } from '../lib/socketClient';
 import { getFriendDisplayName } from '../lib/hooks';
 import { playIncomingCallRingtone, playOutgoingCallTone, stopRingtone } from '../lib/callRingtone';
@@ -55,8 +56,8 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const remoteStreamRef = useRef<MediaStream | null>(null);
   const ringtoneRef = useRef<any>(null);
   const callTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pusherChannelRef = useRef<any>(null);
   const { data: session } = useSession();
-  const socket = typeof window !== 'undefined' ? getSocketClient() : null;
 
   const startCall = useCallback((opts: { type: CallType; targetId: string; targetName?: string; targetAvatar?: string }) => {
     const c: CallState = {
@@ -170,7 +171,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
 
-        // send offer to callee via server (Socket.IO relay)
+        // send offer to callee via server (Pusher relay)
         console.log('[CallProvider] Sending webrtc offer to user:', opts.targetId);
   await fetch('/api/calls/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: opts.targetId, sdp: offer.sdp, from: (session?.user as any)?.id, fromName: (session?.user as any)?.link || (session?.user as any)?.login || (session?.user as any)?.name, fromAvatar: (session?.user as any)?.avatar }) });
       } catch (e) {
@@ -363,7 +364,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => window.removeEventListener('resize', check);
   }, []);
 
-  // allow incoming-call global event to be dispatched from elsewhere (e.g., socket.io handler)
+  // allow incoming-call global event to be dispatched from elsewhere (e.g., Pusher handler)
   useEffect(() => {
     const handler = (e: any) => {
       try {
@@ -411,18 +412,17 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => window.removeEventListener('storage', onStorage);
   }, []);
 
-  // Socket.IO-based signaling: subscribe to incoming webrtc events for this user
+  // Pusher-based signaling: subscribe to incoming webrtc events for this user
   useEffect(() => {
     try {
-      if (!socket) return;
+      const socketClient = getSocketClient();
+      if (!socketClient) return;
       if (!session || !(session.user as any)?.id) return;
       
       // Set userId for socketClient adapter to subscribe to proper channels
       if (typeof window !== 'undefined') {
         (window as any).__userId = (session.user as any).id;
       }
-      
-      socket.emit('join-user', (session.user as any).id);
 
       console.log('[CallProvider] Setting up webrtc event listeners for user:', (session.user as any).id);
 
@@ -573,19 +573,19 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       };
 
-      socket.on('webrtc-offer', onOffer);
-      socket.on('webrtc-answer', onAnswer);
-      socket.on('webrtc-candidate', onCandidate);
-      socket.on('webrtc-end', onEnd);
+      socketClient.on('webrtc-offer', onOffer);
+      socketClient.on('webrtc-answer', onAnswer);
+      socketClient.on('webrtc-candidate', onCandidate);
+      socketClient.on('webrtc-end', onEnd);
 
       return () => {
-        try { socket.off('webrtc-offer', onOffer); } catch (e) {}
-        try { socket.off('webrtc-answer', onAnswer); } catch (e) {}
-        try { socket.off('webrtc-candidate', onCandidate); } catch (e) {}
-        try { socket.off('webrtc-end', onEnd); } catch (e) {}
+        try { socketClient.off('webrtc-offer', onOffer); } catch (e) {}
+        try { socketClient.off('webrtc-answer', onAnswer); } catch (e) {}
+        try { socketClient.off('webrtc-candidate', onCandidate); } catch (e) {}
+        try { socketClient.off('webrtc-end', onEnd); } catch (e) {}
       };
     } catch (e) {}
-  }, [socket, session]);
+  }, [session]);
 
 
   const value = useMemo((): CallContextValue => ({ call, startCall, receiveIncomingCall, acceptCall, endCall, minimizeCall, restoreCall, toggleMute, muted, minimized }), [call, startCall, receiveIncomingCall, acceptCall, endCall, minimizeCall, restoreCall, toggleMute, muted, minimized]);

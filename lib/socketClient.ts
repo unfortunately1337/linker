@@ -23,22 +23,30 @@ export function getSocketClient(): SocketClientAdapter | null {
       
       emit: (event: string, data?: any) => {
         // For client-side emits, we need to send to server via API
-        // This is typically used for join-user, join-chat, typing events
-        if (event === 'join-user' || event === 'join-chat' || event === 'typing') {
-          // These would be handled via API calls instead
-          console.log('[Socket Adapter] Emit:', event, data);
+        // This is typically used for typing events and user joins
+        if (event === 'typing') {
+          const chatId = (typeof window !== 'undefined') ? (window as any).__chatId : null;
+          if (chatId) {
+            fetch('/api/messages/typing', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ chatId })
+            }).catch(e => console.error('[Pusher] Failed to send typing event:', e));
+          }
         }
+        // join-user and join-chat are no longer needed with Pusher's channel subscription
+        console.log('[Pusher Adapter] Emit:', event, data);
       },
       
       on: (event: string, callback: (data: any) => void) => {
         if (!pusher) {
-          console.error('[SocketClient.on] Pusher is null!');
+          console.error('[Pusher.on] Pusher is null!');
           return;
         }
         
         const userId = (typeof window !== 'undefined') ? (window as any).__userId : null;
         const chatId = (typeof window !== 'undefined') ? (window as any).__chatId : null;
-        console.log(`[SocketClient.on] Event: ${event}, userId:`, userId, 'chatId:', chatId);
+        console.log(`[Pusher.on] Event: ${event}, userId:`, userId, 'chatId:', chatId);
         
         // Store callback for this event
         if (!socketClientAdapter!._bindings.has(event)) {
@@ -54,9 +62,9 @@ export function getSocketClient(): SocketClientAdapter | null {
           if (typeof window !== 'undefined' && (window as any).__userId) {
             channels.push(`user-${(window as any).__userId}`);
           } else {
-            console.warn(`[SocketClient.on] No userId for event: ${event}`);
+            console.warn(`[Pusher.on] No userId for event: ${event}`);
           }
-        } else if (event === 'new-message' || event === 'typing' || event === 'message-deleted' || event === 'message-status-changed') {
+        } else if (event === 'new-message' || event === 'typing-indicator' || event === 'message-deleted' || event === 'message-status-changed') {
           // Chat-specific channel (requires chat ID)
           if (typeof window !== 'undefined' && (window as any).__chatId) {
             channels.push(`chat-${(window as any).__chatId}`);
@@ -67,28 +75,28 @@ export function getSocketClient(): SocketClientAdapter | null {
           }
         }
         
-        console.log(`[SocketClient.on] Channels for ${event}:`, channels);
+        console.log(`[Pusher.on] Channels for ${event}:`, channels);
         
         if (channels.length === 0) {
-          console.warn(`[SocketClient.on] No channels found for event: ${event}`);
+          console.warn(`[Pusher.on] No channels found for event: ${event}`);
           return;
         }
         
         channels.forEach(channelName => {
           if (!socketClientAdapter!._channels.has(channelName)) {
-            console.log(`[SocketClient.on] Subscribing to channel: ${channelName} for event: ${event}`);
+            console.log(`[Pusher.on] Subscribing to channel: ${channelName} for event: ${event}`);
             const subscription = pusher.subscribe(channelName);
             socketClientAdapter!._channels.set(channelName, subscription);
-            console.log(`[SocketClient.on] Subscribed to ${channelName}`);
+            console.log(`[Pusher.on] Subscribed to ${channelName}`);
           }
           
           const subscription = socketClientAdapter!._channels.get(channelName);
           if (subscription) {
-            console.log(`[SocketClient.on] Binding event '${event}' to channel '${channelName}'`);
+            console.log(`[Pusher.on] Binding event '${event}' to channel '${channelName}'`);
             subscription.bind(event, callback);
-            console.log(`[SocketClient.on] Successfully bound '${event}' to '${channelName}'`);
+            console.log(`[Pusher.on] Successfully bound '${event}' to '${channelName}'`);
           } else {
-            console.error(`[SocketClient.on] No subscription for channel: ${channelName}`);
+            console.error(`[Pusher.on] No subscription for channel: ${channelName}`);
           }
         });
       },

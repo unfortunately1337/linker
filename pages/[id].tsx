@@ -5,7 +5,7 @@ import { FaPaperPlane, FaCheck, FaCheckDouble } from 'react-icons/fa';
 import { useRouter } from 'next/router';
 import { useSession } from 'next-auth/react';
 
-// Инициализация Socket.IO
+// Инициализация Pusher для real-time профиля
 const socketClient = typeof window !== 'undefined' ? getSocketClient() : null;
 
 // --- Кружок с overlay play/pause ---
@@ -496,7 +496,7 @@ const ChatWithFriend: React.FC = () => {
     }
   };
 
-  // NOTE: single Socket.IO subscription is handled below (avoid double subscriptions)
+  // NOTE: single Pusher subscription is handled below (avoid double subscriptions)
 
   // Отправка события "печатает"
   const sendTypingEvent = () => {
@@ -724,10 +724,6 @@ const ChatWithFriend: React.FC = () => {
       
       // use the shared socketClient instance (initialized once at module top)
       
-      // Join user and chat channels
-      socketClient?.emit('join-user', friend.id);
-      socketClient?.emit('join-chat', chatId);
-      
       const onStatus = (payload: any) => {
         if (!payload || !payload.userId) return;
         setFriend(prev => prev && prev.id === payload.userId ? { ...prev, status: payload.status } : prev);
@@ -780,16 +776,21 @@ const ChatWithFriend: React.FC = () => {
         setTimeout(scrollToBottom, 50);
       };
 
-      // Обработка события "печатает"
-      const onTyping = (data: { userId: string, name: string }) => {
+      // Обработка события "печатает" - добавляем в реакции сообщения
+      const onTypingIndicator = (data: { userId: string, name: string, timestamp: number }) => {
         try {
           if (!data || !data.userId) return;
           if (data.userId === (session?.user as any)?.id) return; // не показываем себе
+          
+          // Показываем typing indicator на 2 секунды
           setIsTyping(data.name || 'Пользователь');
-          // Сбрасываем через 3 секунды
-          setTimeout(() => setIsTyping(null), 3000);
+          const timer = setTimeout(() => {
+            setIsTyping(null);
+          }, 2000);
+          
+          return () => clearTimeout(timer);
         } catch (e) {
-          console.error('Error handling typing event:', e);
+          console.error('Error handling typing indicator event:', e);
         }
       };
 
@@ -804,12 +805,12 @@ const ChatWithFriend: React.FC = () => {
             return next;
           });
         } catch (e) {
-          console.error('[Socket.IO] viewer-state handler error', e);
+          console.error('[Pusher] viewer-state handler error', e);
         }
       };
 
       socketClient?.on('new-message', onNewMessage);
-      socketClient?.on('typing', onTyping);
+      socketClient?.on('typing-indicator', onTypingIndicator);
       socketClient?.on('viewer-state', onViewer);
 
       // cleanup
@@ -817,12 +818,12 @@ const ChatWithFriend: React.FC = () => {
         try {
           try { socketClient?.off('status-changed', onStatus); } catch (e) {}
           try { socketClient?.off('new-message', onNewMessage); } catch (e) {}
-          try { socketClient?.off('typing', onTyping); } catch (e) {}
+          try { socketClient?.off('typing-indicator', onTypingIndicator); } catch (e) {}
           try { socketClient?.off('viewer-state', onViewer); } catch (e) {}
         } catch (e) {}
       };
     } catch (e) {
-      // ignore socket.io errors on client
+      // ignore Pusher errors on client
     }
   }, [friend?.id, chatId]);
 

@@ -46,7 +46,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       chatId: msg.chatId
     });
 
-    // Broadcast status change via Socket.IO to all participants in the chat
+    // Broadcast status change via Pusher to all participants in the chat
     try {
       const pushPayload = {
         messageId: updatedMsg.id,

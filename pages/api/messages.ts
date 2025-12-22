@@ -199,7 +199,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         videoUrl: (message as any).videoUrl || null,
       } as any;
 
-      // Параллельно - обновления и socket.io
+      // Параллельно - обновления и Pusher
       (async () => {
         try {
           const recipients = chat.users?.filter((u: any) => u.id !== user.id) || [];

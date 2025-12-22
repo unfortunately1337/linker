@@ -12,7 +12,7 @@ import { swrConfig, profileKey, chatsKey, messagesKey } from "../lib/hooks";
 import { Toaster, toast } from 'react-hot-toast';
 import { MessageToast } from '../components/MessageToast';
 import ToastNotification from '../components/ToastNotification';
-import { getPusherClient } from '../lib/pusher';
+import { getSocketClient } from '../lib/socketClient';
 import { getUser as getLocalUser } from '../lib/session';
 import GuideModal from '../components/GuideModal';
 
@@ -235,13 +235,17 @@ function MainApp({ Component, pageProps }: AppProps) {
   useEffect(() => {
     if (!session?.user?.id) return;
     const userId = (session.user as any).id;
-    const channelName = `user-${userId}`;
 
     try {
-      const pusherClient = getPusherClient();
-      if (!pusherClient) return;
-      const channel = pusherClient.subscribe(channelName);
-  const handler = (data: any) => {
+      const socket = getSocketClient();
+      if (!socket) return;
+      
+      // Set window variable for user ID
+      if (typeof window !== 'undefined') {
+        (window as any).__userId = userId;
+      }
+      
+      const handler = (data: any) => {
         // data expected: { chatId, senderId, senderAvatar, senderName, senderRole?, content }
         // if user currently viewing the same chat, skip the toast
         try {
@@ -256,7 +260,7 @@ function MainApp({ Component, pageProps }: AppProps) {
         (async () => {
           try { playSound(); } catch (e) {}
 
-          // The server intentionally doesn't include plaintext in the user-level pusher payload.
+          // The server intentionally doesn't include plaintext in the user-level Pusher payload.
           // If `data.content` is missing, fetch the last message for the chat and use that decrypted text.
           let messageText = '';
           try {
@@ -294,11 +298,10 @@ function MainApp({ Component, pageProps }: AppProps) {
         })();
       };
 
-      channel.bind('new-message', handler);
+      socket.on('new-message', handler);
 
       return () => {
-        try { channel.unbind('new-message', handler); } catch (e) {}
-        try { pusherClient.unsubscribe(channelName); } catch (e) {}
+        try { socket.off('new-message', handler); } catch (e) {}
       };
     } catch (e) {
       // ignore

@@ -13,7 +13,7 @@ import { useCall } from '../../components/CallProvider';
 import MessageStatus from '../../components/MessageStatus';
 import styles from '../../styles/Chat.module.css';
 
-// Инициализация Socket.IO
+// Инициализация Pusher для real-time чатов
 const VoiceMessage: React.FC<{ audioUrl: string; isOwn?: boolean }> = ({ audioUrl, isOwn }) => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [duration, setDuration] = useState<number>(0);
@@ -424,7 +424,7 @@ const ChatWithFriend: React.FC = () => {
     }
   };
 
-  // NOTE: single Socket.IO subscription is handled below (avoid double subscriptions)
+  // NOTE: single Pusher subscription is handled below (avoid double subscriptions)
 
   // Отправка события "печатает"
   const sendTypingEvent = () => {
@@ -709,10 +709,6 @@ const ChatWithFriend: React.FC = () => {
       
       // use the shared socketClient instance (initialized once at module top)
       
-      // Join user and chat channels via socket events
-      socketClient?.emit('join-user', friend.id);
-      socketClient?.emit('join-chat', chatId);
-
       const onStatus = (payload: any) => {
         if (!payload || !payload.userId) return;
         setFriend(prev => prev && prev.id === payload.userId ? { ...prev, status: payload.status } : prev);
@@ -812,16 +808,21 @@ const ChatWithFriend: React.FC = () => {
         setTimeout(scrollToBottom, 50);
       };
       // mark-read/unread handlers removed (feature disabled)
-      // Обработка события "печатает"
-      const onTyping = (data: { userId: string, name: string }) => {
+      // Обработка события "печатает" - добавляем в реакции сообщения
+      const onTypingIndicator = (data: { userId: string, name: string, timestamp: number }) => {
         try {
           if (!data || !data.userId) return;
           if (data.userId === (session?.user as any)?.id) return; // не показываем себе
+          
+          // Показываем typing indicator на 2 секунды
           setIsTyping(data.name || 'Пользователь');
-          // Сбрасываем через 3 секунды
-          setTimeout(() => setIsTyping(null), 3000);
+          const timer = setTimeout(() => {
+            setIsTyping(null);
+          }, 2000);
+          
+          return () => clearTimeout(timer);
         } catch (e) {
-          console.error('Error handling typing event:', e);
+          console.error('Error handling typing indicator event:', e);
         }
       };
       const onMessageDeleted = (data: any) => {
@@ -845,7 +846,7 @@ const ChatWithFriend: React.FC = () => {
             return next;
           });
         } catch (e) {
-          console.error('[Socket.IO] viewer-state handler error', e);
+          console.error('[Pusher] viewer-state handler error', e);
         }
       };
 
@@ -853,11 +854,11 @@ const ChatWithFriend: React.FC = () => {
       const onMessageStatusChanged = (data: any) => {
         try {
           if (!data || !data.messageId) return;
-          console.log('[Socket.IO] message-status-changed event received:', data);
+          console.log('[Pusher] message-status-changed event received:', data);
           setMessages(prev => {
             const updated = prev.map(m => {
               if (m.id === data.messageId) {
-                console.log('[Socket.IO] Updating message status:', m.id, 'from', m.status, 'to', data.status);
+                console.log('[Pusher] Updating message status:', m.id, 'from', m.status, 'to', data.status);
                 return { ...m, status: data.status };
               }
               return m;
@@ -865,13 +866,13 @@ const ChatWithFriend: React.FC = () => {
             return updated;
           });
         } catch (e) {
-          console.error('[Socket.IO] message-status-changed handler error', e);
+          console.error('[Pusher] message-status-changed handler error', e);
         }
       };
 
       socketClient?.on('status-changed', onStatus);
       socketClient?.on('new-message', onNewMessage);
-      socketClient?.on('typing', onTyping);
+      socketClient?.on('typing-indicator', onTypingIndicator);
       socketClient?.on('message-deleted', onMessageDeleted);
       socketClient?.on('viewer-state', onViewer);
       socketClient?.on('message-status-changed', onMessageStatusChanged);
@@ -882,14 +883,14 @@ const ChatWithFriend: React.FC = () => {
           try { stopTyping(); } catch (e) {}
           try { socketClient?.off('status-changed', onStatus); } catch (e) {}
           try { socketClient?.off('new-message', onNewMessage); } catch (e) {}
-          try { socketClient?.off('typing', onTyping); } catch (e) {}
+          try { socketClient?.off('typing-indicator', onTypingIndicator); } catch (e) {}
           try { socketClient?.off('message-deleted', onMessageDeleted); } catch (e) {}
           try { socketClient?.off('viewer-state', onViewer); } catch (e) {}
           try { socketClient?.off('message-status-changed', onMessageStatusChanged); } catch (e) {}
         } catch (e) {}
       };
     } catch (e) {
-      // ignore socket.io errors on client
+      // ignore Pusher errors on client
     }
   }, [friend?.id, chatId]);
 
@@ -972,12 +973,12 @@ const ChatWithFriend: React.FC = () => {
           // mark temp message as failed visually
           setMessages((prev: any[]) => prev.map((msg: any) => msg.id === tempId ? { ...msg, _failed: true } : msg));
         }
-  // If a server message with the same id already exists (arrived via socket.io),
+  // If a server message with the same id already exists (arrived via Pusher),
   // remove the temporary message instead of replacing it to avoid duplicates.
         setMessages((prev: any[]) => {
           try {
             if (prev.some((m: any) => m.id === serverMsg.id)) {
-              // server message already present (socket.io delivered it): remove temp
+              // server message already present (Pusher delivered it): remove temp
               return prev.filter((m: any) => m.id !== tempId);
             }
             // Otherwise replace the temp message with the server-provided message data,
