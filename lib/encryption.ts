@@ -24,31 +24,45 @@ function deriveKey(chatId: string, salt: Buffer): { key: Buffer, salt: Buffer } 
 }
 
 export function encryptMessage(message: string, chatId: string): string {
-    const salt = crypto.randomBytes(SALT_LENGTH);
-    const { key } = deriveKey(chatId, salt);
-    const iv = crypto.randomBytes(IV_LENGTH);
-    const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
-    
-    const encrypted = Buffer.concat([cipher.update(message, 'utf8'), cipher.final()]);
-    const authTag = cipher.getAuthTag();
+    try {
+        const salt = crypto.randomBytes(SALT_LENGTH);
+        const { key } = deriveKey(chatId, salt);
+        const iv = crypto.randomBytes(IV_LENGTH);
+        const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
+        
+        const encrypted = Buffer.concat([cipher.update(message, 'utf8'), cipher.final()]);
+        const authTag = cipher.getAuthTag();
 
-    // Формат: salt:iv:encrypted:authTag
-    return Buffer.concat([
-        salt,
-        iv,
-        encrypted,
-        authTag
-    ]).toString('base64');
+        // Формат: salt:iv:encrypted:authTag
+        const result = Buffer.concat([
+            salt,
+            iv,
+            encrypted,
+            authTag
+        ]).toString('base64');
+        
+        console.log('[ENCRYPT] Message encrypted successfully for chat:', chatId.substring(0, 8));
+        return result;
+    } catch (e) {
+        console.error('[ENCRYPT] Encryption error:', e);
+        throw e;
+    }
 }
 
 export function decryptMessage(encryptedMessage: string, chatId: string): string {
     try {
         const buffer = Buffer.from(encryptedMessage, 'base64');
         
+        // Проверяем минимальный размер буфера
+        const minSize = SALT_LENGTH + IV_LENGTH + AUTH_TAG_LENGTH;
+        if (buffer.length < minSize) {
+            throw new Error(`Buffer too small: ${buffer.length} bytes, expected at least ${minSize}`);
+        }
+        
         const salt = buffer.slice(0, SALT_LENGTH);
         const iv = buffer.slice(SALT_LENGTH, SALT_LENGTH + IV_LENGTH);
         const authTag = buffer.slice(-AUTH_TAG_LENGTH);
-        const encrypted = buffer.slice(SALT_LENGTH + IV_LENGTH, -AUTH_TAG_LENGTH);
+        const encrypted = buffer.slice(SALT_LENGTH + IV_LENGTH, buffer.length - AUTH_TAG_LENGTH);
         
         const { key } = deriveKey(chatId, salt);
         
@@ -56,9 +70,11 @@ export function decryptMessage(encryptedMessage: string, chatId: string): string
         decipher.setAuthTag(authTag);
         
         const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
+        
+        console.log('[DECRYPT] Message decrypted successfully for chat:', chatId.substring(0, 8));
         return decrypted.toString('utf8');
     } catch (e) {
-        console.error('Decryption error:', e);
+        console.error('[DECRYPT] Decryption error for chat', chatId.substring(0, 8), ':', e instanceof Error ? e.message : String(e));
         return '[Ошибка шифрования]';
     }
 }

@@ -240,6 +240,7 @@ interface Message {
   audioUrl?: string;
   videoUrl?: string;
   thumbnailUrl?: string;
+  reactions?: Array<{ emoji: string; count: number; userIds: string[]; users?: Array<{ id: string; login: string; avatar?: string }> }>;
   _key?: string;
   // internal flags used by UI (optional)
   _serverId?: string;

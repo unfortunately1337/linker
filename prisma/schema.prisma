@@ -46,9 +46,9 @@ model User {
   chatUnreads    ChatUnread[]
   friends        Friend[]     @relation("UserFriends")
   sentMessages   Message[]    @relation("UserSentMessages")
+  reactions      Reaction[]   @relation("UserReactions")
   sessions       Session[]    @relation("UserSessions")
   chats          Chat[]       @relation("ChatUsers")
-  // relation fields for Call model
   callsMade      Call[]       @relation("CallCaller")
   callsReceived  Call[]       @relation("CallCallee")
   posts          Post[]
@@ -86,13 +86,26 @@ model Message {
   createdAt DateTime @default(now())
   audioUrl  String?
   videoUrl  String?
-   audioBase64 String?   // new
-  audioMime   String?   // new
-  videoBase64 String?   // new
-  videoMime   String?   // new
-  status    String   @default("sent") // sent (1 grey checkmark), read (2 blue checkmarks)
+  audioBase64 String?
+  audioMime   String?
+  videoBase64 String?
+  videoMime   String?
+  status    String   @default("sent")
   chat      Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
   sender    User     @relation("UserSentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  reactions Reaction[]
+}
+
+model Reaction {
+  id        String   @id @default(uuid())
+  messageId String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User     @relation("UserReactions", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji])
 }
 
 model Call {

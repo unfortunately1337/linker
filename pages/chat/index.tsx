@@ -272,12 +272,19 @@ const ChatPage: React.FC = () => {
       >
         {renderAvatar()}
         <div className={styles.chatItemInfo}>
-          <span className={styles.chatItemTitle}>
-            {title || 'Группа'}
-            {role === 'admin' && <img src="/role-icons/admin.svg" alt="admin" className={styles.chatItemTitleIcon} />}
-            {role === 'moderator' && <img src="/role-icons/moderator.svg" alt="moderator" className={styles.chatItemTitleIcon} />}
-            {role === 'verif' && <img src="/role-icons/verif.svg" alt="verif" className={styles.chatItemTitleIcon} />}
-          </span>
+          <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8}}>
+            <span className={styles.chatItemTitle}>
+              {title || 'Группа'}
+              {role === 'admin' && <img src="/role-icons/admin.svg" alt="admin" className={styles.chatItemTitleIcon} />}
+              {role === 'moderator' && <img src="/role-icons/moderator.svg" alt="moderator" className={styles.chatItemTitleIcon} />}
+              {role === 'verif' && <img src="/role-icons/verif.svg" alt="verif" className={styles.chatItemTitleIcon} />}
+            </span>
+            {lastMessages[chat.id]?.createdAt && (
+              <span style={{fontSize: 12, color: '#999', whiteSpace: 'nowrap', flexShrink: 0}}>
+                {new Date(lastMessages[chat.id]!.createdAt).toLocaleTimeString('ru-RU', {hour: '2-digit', minute: '2-digit'})}
+              </span>
+            )}
+          </div>
           {lastMessages[chat.id] && (
             lastMessages[chat.id]?.videoUrl ? (
               <div className={styles.chatItemPreview}>
@@ -291,8 +298,8 @@ const ChatPage: React.FC = () => {
               </span>
             ) : lastMessages[chat.id]?.text ? (
               <span className={styles.chatItemPreview}>
-                {lastMessages[chat.id]!.text.length > 40
-                  ? lastMessages[chat.id]!.text.slice(0, 40) + '...'
+                {lastMessages[chat.id]!.text.length > 50
+                  ? lastMessages[chat.id]!.text.slice(0, 50) + '...'
                   : lastMessages[chat.id]!.text}
               </span>
             ) : null
@@ -314,13 +321,24 @@ const ChatPage: React.FC = () => {
             onClick={() => setShowSettingsModal(true)}
             className={styles.headerButton}
           >
-            <img src="/settings.svg" alt="Настройки" width={20} height={20} style={{display:'block'}} />
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.14 12a6.94 6.94 0 0 0-.11-1.23l2.26-1.76a.5.5 0 0 0 .12-.64l-2.14-3.7a.5.5 0 0 0-.62-.22l-2.66 1.08a6.88 6.88 0 0 0-1.06-.61L14.5 2a.5.5 0 0 0-.5-.5h-4a.5.5 0 0 0-.5.5l-.4 2.86a6.88 6.88 0 0 0-1.06.61l-2.66-1.08a.5.5 0 0 0-.62.22L2.58 8.41a.5.5 0 0 0 .12.64l2.26 1.76a6.94 6.94 0 0 0-.11 1.23 6.94 6.94 0 0 0 .11 1.23l-2.26 1.76a.5.5 0 0 0-.12.64l2.14 3.7a.5.5 0 0 0 .62.22l2.66-1.08a6.88 6.88 0 0 0 1.06.61l.4 2.86a.5.5 0 0 0 .5.5h4a.5.5 0 0 0 .5-.5l.4-2.86a6.88 6.88 0 0 0 1.06-.61l2.66 1.08a.5.5 0 0 0 .62-.22l2.14-3.7a.5.5 0 0 0-.12-.64l-2.26-1.76a6.94 6.94 0 0 0 .11-1.23z"></path>
+            </svg>
           </button>
           <h2 className={styles.headerTitle}>Чаты</h2>
           <div style={{width:44}} />
         </div>
         {chats.length === 0 ? (
-          <div className={styles.chatListEmpty}>Похоже, тут пусто...<br /></div>
+          <div className={styles.chatListEmpty}>
+            <div>
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{margin: '0 auto 12px', opacity: 0.5}}>
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+              </svg>
+              <p>Похоже, тут пусто...</p>
+              <p style={{fontSize: '12px', opacity: 0.6}}>Добавьте друга, чтобы начать диалог</p>
+            </div>
+          </div>
         ) : (
           <div className={styles.chatList}>
             {chatList}
@@ -342,4 +360,3 @@ const ChatPage: React.FC = () => {
 };
 
 export default ChatPage;
-

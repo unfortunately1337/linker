@@ -46,15 +46,21 @@
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  transition: all 0.2s ease;
-  color: #6b7280;
+  transition: all 0.3s cubic-bezier(0.23, 1, 0.320, 1);
+  color: #a0aec0;
   width: 44px;
   height: 44px;
+  position: relative;
 }
 
 .headerButton:hover {
-  background: transparent;
-  color: #6b7280;
+  background: rgba(255, 255, 255, 0.08);
+  color: #cbd5e0;
+  transform: rotate(90deg);
+}
+
+.headerButton:active {
+  transform: rotate(90deg) scale(0.95);
 }
 
 .chatList {
@@ -733,4 +739,97 @@
     height: 36px;
     padding: 8px;
   }
+}
+
+/* Reactions styles */
+.messageReactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+  padding: 0 2px;
+}
+
+.reactionBubble {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  padding: 2px 6px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.reactionBubble:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.25);
+  transform: scale(1.05);
+}
+
+.reactionCount {
+  font-size: 12px;
+  color: #aaa;
+  font-weight: 500;
+  min-width: 18px;
+  text-align: center;
+}
+
+.reactionPicker {
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  background: rgba(20, 20, 30, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 8px;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 4px;
+  z-index: 1000;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+.reactionOption {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  font-size: 16px;
+  transition: all 0.2s ease;
+}
+
+.reactionOption:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: scale(1.15);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.addReactionBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.addReactionBtn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.25);
 }

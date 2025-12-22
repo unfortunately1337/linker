@@ -51,15 +51,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const msgs = await prisma.message.findMany({ 
         where, 
         orderBy: { createdAt: 'desc' }, 
-        take: limit,
-        include: {
-          reactions: {
-            include: {
-              user: { select: { id: true } }
-            }
-          }
-        }
-      } as any);
+        take: limit
+      });
       const messages = msgs.reverse();
 
       // Decrypt text per-message; keep others if one fails.
@@ -67,36 +60,62 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         let text = '';
         if (msg.text) {
           try {
-            text = decryptMessage(msg.text, chatId);
+            text = decryptMessage(msg.text, msg.chatId);
           } catch (dErr) {
             console.error('[MESSAGES GET] Failed to decrypt message', msg.id, dErr);
             text = '[Ошибка расшифровки]';
           }
         }
         
-        // Group reactions by emoji
-        const reactionsMap: Record<string, string[]> = {};
-        if (msg.reactions) {
-          msg.reactions.forEach((reaction: any) => {
-            if (!reactionsMap[reaction.emoji]) {
-              reactionsMap[reaction.emoji] = [];
-            }
-            reactionsMap[reaction.emoji].push(reaction.user.id);
-          });
-        }
-        
-        const reactions = Object.entries(reactionsMap).map(([emoji, users]) => ({
-          emoji,
-          users,
-          count: users.length
-        }));
-        
-        return { ...msg, text, reactions };
+        return { ...msg, text };
       });
+
+      // Fetch reactions for all messages from database
+      const messageIds = decryptedMessages.map(m => m.id);
+      let reactionsMap: Record<string, any[]> = {};
+      
+      try {
+        const reactionsFromDb = await prisma.reaction.groupBy({
+          by: ['messageId', 'emoji'],
+          where: { messageId: { in: messageIds } }
+        });
+
+        // Build reactions map with user data
+        for (const reaction of reactionsFromDb) {
+          if (!reactionsMap[reaction.messageId]) {
+            reactionsMap[reaction.messageId] = [];
+          }
+          
+          // Get users for this reaction
+          const users = await prisma.reaction.findMany({
+            where: { messageId: reaction.messageId, emoji: reaction.emoji },
+            select: { user: { select: { id: true, login: true, avatar: true } } }
+          });
+          
+          const existing = reactionsMap[reaction.messageId].find(r => r.emoji === reaction.emoji);
+          if (!existing) {
+            reactionsMap[reaction.messageId].push({
+              emoji: reaction.emoji,
+              count: users.length,
+              userIds: users.map(u => u.user.id),
+              users: users.map(u => u.user)
+            });
+          }
+        }
+      } catch (reactErr) {
+        console.warn('[MESSAGES GET] Failed to fetch reactions from DB:', reactErr);
+        // Continue without reactions if DB fails
+      }
+      
+      // Attach reactions to messages
+      const messagesWithReactions = decryptedMessages.map((msg: any) => ({
+        ...msg,
+        reactions: reactionsMap[msg.id] || []
+      }));
 
       // hasMore -> true when we returned 'limit' items (there may be more older messages)
       const hasMore = msgs.length === limit;
-      return res.status(200).json({ messages: decryptedMessages, hasMore });
+      return res.status(200).json({ messages: messagesWithReactions, hasMore });
     } catch (err: any) {
       console.error('Failed to fetch messages for chatId', chatId, err);
       const payload: any = { error: 'Failed to fetch messages' };

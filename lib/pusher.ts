@@ -1,11 +1,25 @@
 import Pusher from 'pusher';
 import PusherClient from 'pusher-js';
 
+const appId = process.env.PUSHER_APP_ID;
+const key = process.env.PUSHER_KEY;
+const secret = process.env.PUSHER_SECRET;
+const cluster = process.env.PUSHER_CLUSTER;
+
+if (!appId || !key || !secret || !cluster) {
+  console.error('[PUSHER] Missing environment variables:', {
+    appId: !!appId,
+    key: !!key,
+    secret: !!secret,
+    cluster: !!cluster
+  });
+}
+
 export const pusher = new Pusher({
-  appId: process.env.PUSHER_APP_ID!,
-  key: process.env.PUSHER_KEY!,
-  secret: process.env.PUSHER_SECRET!,
-  cluster: process.env.PUSHER_CLUSTER!,
+  appId: appId || 'missing',
+  key: key || 'missing',
+  secret: secret || 'missing',
+  cluster: cluster || 'missing',
   useTLS: true,
 });
 
@@ -14,9 +28,9 @@ let _pusherClient: any = null;
 export function getPusherClient() {
   if (typeof window === 'undefined') return null;
   if (_pusherClient) return _pusherClient;
-  const key = process.env.NEXT_PUBLIC_PUSHER_KEY || '';
-  const cluster = process.env.NEXT_PUBLIC_PUSHER_CLUSTER || '';
-  if (!key) return null;
-  _pusherClient = new PusherClient(key as string, { cluster: cluster as string });
+  const publicKey = process.env.NEXT_PUBLIC_PUSHER_KEY || '';
+  const publicCluster = process.env.NEXT_PUBLIC_PUSHER_CLUSTER || '';
+  if (!publicKey) return null;
+  _pusherClient = new PusherClient(publicKey as string, { cluster: publicCluster as string });
   return _pusherClient;
 }

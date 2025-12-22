@@ -120,6 +120,7 @@ interface Message {
   videoUrl?: string;
   thumbnailUrl?: string;
   status?: 'sent' | 'read';
+  reactions?: Array<{ emoji: string; count: number; userIds: string[]; users?: Array<{ id: string; login: string; avatar?: string }> }>;
   _key?: string;
   // internal flags used by UI (optional)
   _serverId?: string;
@@ -1379,18 +1380,138 @@ const ChatWithFriend: React.FC = () => {
                                     <MessageStatus status={msg.status} isOwnMessage={true} />
                                   )}
                                 </div>
+
+                                {/* Reactions line */}
+                                {msg.reactions && msg.reactions.length > 0 && (
+                                  <div style={{
+                                    display: 'flex',
+                                    gap: '8px',
+                                    marginTop: '8px',
+                                    alignItems: 'center',
+                                    flexWrap: 'wrap'
+                                  }}>
+                                    {msg.reactions.map((reaction: any, idx: number) => (
+                                      <div
+                                        key={`${reaction.emoji}-${idx}`}
+                                        style={{
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          gap: '3px',
+                                          position: 'relative'
+                                        }}
+                                        title={reaction.users?.map((u: any) => u.login).join(', ') || 'No users'}
+                                      >
+                                        {/* Emoji */}
+                                        <span 
+                                          onClick={() => {
+                                            fetch('/api/messages/reactions', {
+                                              method: 'POST',
+                                              headers: { 'Content-Type': 'application/json' },
+                                              credentials: 'include',
+                                              body: JSON.stringify({ messageId: msg.id, emoji: reaction.emoji })
+                                            }).then(r => r.json()).then((data) => {
+                                              setMessages(prev => prev.map(m => 
+                                                m.id === msg.id 
+                                                  ? { ...m, reactions: data.reactions || [] }
+                                                  : m
+                                              ));
+                                            }).catch(err => console.error('Reaction error:', err));
+                                          }}
+                                          style={{
+                                            cursor: 'pointer',
+                                            fontSize: '18px',
+                                            transition: 'all 0.15s ease'
+                                          }}
+                                          onMouseEnter={(e) => {
+                                            e.currentTarget.style.transform = 'scale(1.3)';
+                                          }}
+                                          onMouseLeave={(e) => {
+                                            e.currentTarget.style.transform = 'scale(1)';
+                                          }}
+                                        >
+                                          {reaction.emoji}
+                                        </span>
+
+                                        {/* User avatars */}
+                                        {reaction.users && reaction.users.slice(0, 2).map((user: any, aidx: number) => (
+                                          <div
+                                            key={`user-${user.id}`}
+                                            style={{
+                                              width: '16px',
+                                              height: '16px',
+                                              borderRadius: '50%',
+                                              background: user.avatar ? `url(${user.avatar})` : '#0f7ff0',
+                                              backgroundSize: 'cover',
+                                              backgroundPosition: 'center',
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              justifyContent: 'center',
+                                              fontSize: '8px',
+                                              color: '#fff',
+                                              fontWeight: 'bold',
+                                              marginLeft: aidx > 0 ? '-6px' : '0',
+                                              border: '1.5px solid #0a0e11',
+                                              zIndex: 2 - aidx,
+                                              cursor: 'pointer',
+                                              transition: 'all 0.15s ease'
+                                            }}
+                                            title={user.login}
+                                            onMouseEnter={(e) => {
+                                              e.currentTarget.style.transform = 'scale(1.3)';
+                                            }}
+                                            onMouseLeave={(e) => {
+                                              e.currentTarget.style.transform = 'scale(1)';
+                                            }}
+                                          >
+                                            {!user.avatar && user.login?.charAt(0).toUpperCase()}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    ))}
+                                    
+                                    {/* Add reaction button */}
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setOpenActionMsgId(prev => prev === msg.id ? null : msg.id);
+                                      }}
+                                      title="Add reaction"
+                                      style={{
+                                        background: 'transparent',
+                                        border: 'none',
+                                        padding: '4px 6px',
+                                        cursor: 'pointer',
+                                        fontSize: '18px',
+                                        color: '#666',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        transition: 'all 0.15s ease'
+                                      }}
+                                      onMouseEnter={(e) => {
+                                        e.currentTarget.style.color = '#aaa';
+                                        e.currentTarget.style.transform = 'scale(1.2)';
+                                      }}
+                                      onMouseLeave={(e) => {
+                                        e.currentTarget.style.color = '#666';
+                                        e.currentTarget.style.transform = 'scale(1)';
+                                      }}
+                                    >
+                                      ➕
+                                    </button>
+                                  </div>
+                                )}
                               </div>
                             )}
 
-                            {/* Action menu: только для собственных сообщений */}
-                            {isOwn && openActionMsgId === msg.id && (
+                            {/* Action menu with reactions */}
+                            {openActionMsgId === msg.id && (
                               <div
                                 className="action-menu"
                                 onClick={(e) => { e.stopPropagation(); }}
                                 role="menu"
                                 style={{
                                   position: 'absolute',
-                                  bottom: isMobile ? -120 : -110,
+                                  bottom: isMobile ? -160 : -150,
                                   right: isOwn ? (isMobile ? -8 : -12) : 'auto',
                                   left: isOwn ? 'auto' : (isMobile ? -8 : -12),
                                   background: 'rgba(15, 17, 19, 0.95)',
@@ -1409,6 +1530,59 @@ const ChatWithFriend: React.FC = () => {
                                 }}
                                 data-action-container={msg.id}
                               >
+                                {/* Reactions picker */}
+                                <div style={{
+                                  display: 'flex',
+                                  gap: '4px',
+                                  flexWrap: 'wrap',
+                                  justifyContent: 'center',
+                                  maxWidth: '240px',
+                                  paddingBottom: '8px',
+                                  borderBottom: '1px solid rgba(255,255,255,0.1)',
+                                  width: '100%'
+                                }}>
+                                  {['❤️', '👍', '👎', '💩'].map((emoji) => (
+                                    <button
+                                      key={emoji}
+                                      onClick={(e) => {
+                                        try { e.stopPropagation(); } catch {}
+                                        fetch('/api/messages/reactions', {
+                                          method: 'POST',
+                                          headers: { 'Content-Type': 'application/json' },
+                                          credentials: 'include',
+                                          body: JSON.stringify({ messageId: msg.id, emoji })
+                                        }).then(r => r.json()).then(() => {
+                                          setOpenActionMsgId(null);
+                                        }).catch(err => console.error('Reaction error:', err));
+                                      }}
+                                      title={`React with ${emoji}`}
+                                      style={{
+                                        background: 'rgba(255,255,255,0.06)',
+                                        border: '1px solid rgba(255,255,255,0.1)',
+                                        borderRadius: '10px',
+                                        padding: '6px 8px',
+                                        cursor: 'pointer',
+                                        fontSize: '18px',
+                                        transition: 'all 0.15s ease',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center'
+                                      }}
+                                      onMouseEnter={(e) => {
+                                        e.currentTarget.style.background = 'rgba(255,255,255,0.12)';
+                                        e.currentTarget.style.transform = 'scale(1.2)';
+                                      }}
+                                      onMouseLeave={(e) => {
+                                        e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
+                                        e.currentTarget.style.transform = 'scale(1)';
+                                      }}
+                                    >
+                                      {emoji}
+                                    </button>
+                                  ))}
+                                </div>
+
+                                {/* Copy button */}
                                 <button
                                   onClick={(e) => { try { e.stopPropagation(); } catch {} handleCopy(msg.text); }}
                                   title="Копировать"
@@ -1435,12 +1609,14 @@ const ChatWithFriend: React.FC = () => {
                                     width: '100%'
                                   }}
                                 >
-                                  <svg width={20} height={20} viewBox="0 0 24 24" fill="none" style={{ display: 'block', color: 'inherit', marginRight: 8 }}>
+                                  <svg width={18} height={18} viewBox="0 0 24 24" fill="none" style={{ display: 'block', color: 'inherit', marginRight: 8 }}>
                                     <path d="M16 1H4a2 2 0 00-2 2v12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
                                     <rect x="8" y="5" width="13" height="13" rx="2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
                                   </svg>
-                                  <span style={{ fontSize: '13px', fontWeight: 500 }}>Копировать текст</span>
+                                  <span style={{ fontSize: '13px', fontWeight: 500 }}>Копировать</span>
                                 </button>
+
+                                {/* Delete button */}
                                 <button
                                   onClick={(e) => { try { e.stopPropagation(); } catch {} handleDeleteMessage(msg); }}
                                   title="Удалить"
@@ -1453,24 +1629,22 @@ const ChatWithFriend: React.FC = () => {
                                     e.currentTarget.style.background = 'transparent';
                                     e.currentTarget.style.transform = 'scale(1)';
                                   }}
-                                  style={{ 
-                                    background: 'transparent', 
-                                    border: 'none', 
-                                    padding: '10px 12px', 
-                                    display: 'flex', 
-                                    alignItems: 'center', 
-                                    justifyContent: 'center', 
-                                    cursor: 'pointer', 
-                                    color: '#ff6b6b', 
-                                    borderRadius: 16, 
+                                  style={{
+                                    background: 'transparent',
+                                    border: 'none',
+                                    padding: '10px 12px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    cursor: 'pointer',
+                                    color: '#ff7b7b',
+                                    borderRadius: 16,
                                     transition: 'all .15s ease',
                                     width: '100%'
                                   }}
                                 >
-                                  <svg width={20} height={20} viewBox="0 0 24 24" fill="none" style={{ display: 'block', marginRight: 8 }}>
-                                    <path d="M9 3h6l1 2h4v2H4V5h4l1-2z" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                                    <path d="M10 11v6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                                    <path d="M14 11v6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                                  <svg width={18} height={18} viewBox="0 0 24 24" fill="none" style={{ display: 'block', color: 'inherit', marginRight: 8 }}>
+                                    <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
                                   </svg>
                                   <span style={{ fontSize: '13px', fontWeight: 500 }}>Удалить</span>
                                 </button>

@@ -10,6 +10,7 @@ interface Message {
   sender: string;
   text: string;
   createdAt: string;
+  reactions?: Array<{ emoji: string; count: number; userIds: string[]; users?: Array<{ id: string; login: string; avatar?: string }> }>;
 }
 
 const ChatWithFriend: React.FC = () => {
