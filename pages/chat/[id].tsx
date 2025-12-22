@@ -169,6 +169,8 @@ const ChatWithFriend: React.FC = () => {
   const [hoveredMsgId, setHoveredMsgId] = useState<string | null>(null);
   const [viewers, setViewers] = useState<Set<string>>(new Set());
   const [openActionMsgId, setOpenActionMsgId] = useState<string | null>(null);
+  const [recentReactions, setRecentReactions] = useState<Record<string, number>>({});
+  const [removingReactions, setRemovingReactions] = useState<Set<string>>(new Set());
   const lastTapRef = useRef<number | null>(null);
   const [isTyping, setIsTyping] = useState<string | null>(null);
   const [isSpeaking, setIsSpeaking] = useState<string | null>(null);
@@ -552,6 +554,7 @@ const ChatWithFriend: React.FC = () => {
                           videoUrl: msg.videoUrl || undefined,
                           thumbnailUrl: msg.thumbnailUrl || undefined,
                           status: msg.status || 'sent',
+                          reactions: msg.reactions || []
                         }));
                 setMessages(msgs);
                 // Прокручиваем в конец после загрузки сообщений
@@ -726,7 +729,8 @@ const ChatWithFriend: React.FC = () => {
           text: payload.text || '', // might be empty if server didn't include plaintext
           createdAt: payload.createdAt || new Date().toISOString(),
           audioUrl: payload.audioUrl,
-          videoUrl: payload.videoUrl
+          videoUrl: payload.videoUrl,
+          reactions: payload.reactions || []
         };
 
         setMessages(prev => {
@@ -768,6 +772,7 @@ const ChatWithFriend: React.FC = () => {
               createdAt: newMsg.createdAt,
               audioUrl: newMsg.audioUrl,
               videoUrl: newMsg.videoUrl,
+              reactions: newMsg.reactions || [],
               _encryptedPending: !Boolean(newMsg.text),
             } as any);
             return copy;
@@ -920,6 +925,7 @@ const ChatWithFriend: React.FC = () => {
       text: messageText,
       createdAt: new Date().toISOString(),
       status: 'sent' as const,
+      reactions: []
     };
     
     setMessages(prev => [...prev, tempMessage]);
@@ -984,6 +990,7 @@ const ChatWithFriend: React.FC = () => {
               createdAt: serverMsg.createdAt || new Date().toISOString(),
               videoUrl: serverMsg.videoUrl,
               audioUrl: serverMsg.audioUrl,
+              reactions: serverMsg.reactions || [],
               _persisted: serverMsg.persisted !== false,
             } : msg);
           } catch (e) {
@@ -1109,13 +1116,21 @@ const ChatWithFriend: React.FC = () => {
             from { opacity: 0; transform: translateY(-6px) scale(0.98); }
             to { opacity: 1; transform: translateY(0) scale(1); }
           }
+          @keyframes actionPopBottom {
+            from { opacity: 0; transform: translateY(6px) scale(0.98); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+          }
           @keyframes pulse {
             0% { box-shadow: 0 0 8px #ef4444aa, 0 0 12px #ef4444aa; }
             50% { box-shadow: 0 0 12px #ef4444, 0 0 20px #ef4444; }
             100% { box-shadow: 0 0 8px #ef4444aa, 0 0 12px #ef4444aa; }
           }
           .action-menu {
-            animation: actionPop 0.18s cubic-bezier(.2,.9,.2,1) both;
+            animation: actionPop 0.22s cubic-bezier(.2,.9,.2,1) both;
+          }
+          .action-menu-bottom {
+            animation: actionPopBottom 0.22s cubic-bezier(.2,.9,.2,1) both;
+          }
           }
           .action-btn {
             display: inline-flex;
@@ -1132,6 +1147,35 @@ const ChatWithFriend: React.FC = () => {
           }
           .action-btn:hover { background: rgba(255,255,255,0.03); transform: translateY(-1px); }
           .action-btn.icon-only { gap: 0; padding: 6px; }
+          @keyframes reactionPop {
+            0% {
+              transform: scale(0.4) rotate(-30deg);
+              opacity: 0;
+            }
+            50% {
+              transform: scale(1.15) rotate(10deg);
+            }
+            100% {
+              transform: scale(1) rotate(0deg);
+              opacity: 1;
+            }
+          }
+          @keyframes reactionRemove {
+            0% {
+              transform: scale(1) rotate(0deg);
+              opacity: 1;
+            }
+            100% {
+              transform: scale(0.3) rotate(30deg);
+              opacity: 0;
+            }
+          }
+          .reaction-animate {
+            animation: reactionPop 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55) both;
+          }
+          .reaction-remove {
+            animation: reactionRemove 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55) both;
+          }
         `}</style>
       </Head>
       <div className={styles.chatPageContainer}>
@@ -1326,7 +1370,18 @@ const ChatWithFriend: React.FC = () => {
                               const DOUBLE_TAP_MS = 350;
                               if (last && (now - last) <= DOUBLE_TAP_MS) {
                                 // double click detected — toggle menu
-                                setOpenActionMsgId(prev => prev === msg.id ? null : msg.id);
+                                if (openActionMsgId !== msg.id) {
+                                  setOpenActionMsgId(msg.id);
+                                  // Auto-scroll to ensure message is visible
+                                  setTimeout(() => {
+                                    const ref = document.querySelector(`[data-action-container="${msg.id}"]`);
+                                    if (ref) {
+                                      ref.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                    }
+                                  }, 50);
+                                } else {
+                                  setOpenActionMsgId(null);
+                                }
                                 lastTapRef.current = null;
                               } else {
                                 // record first click, wait for second
@@ -1337,7 +1392,7 @@ const ChatWithFriend: React.FC = () => {
                               }
                             }}
                             onTouchEnd={(e) => {
-                              // Моб: открываем меню по двойному тапу (2 клика)
+                              // Моб: обработка двойного тапа (2 клика)
                               if (!isMobile) return;
                               try { e.stopPropagation(); } catch {}
                               const now = Date.now();
@@ -1345,7 +1400,18 @@ const ChatWithFriend: React.FC = () => {
                               const DOUBLE_TAP_MS = 350;
                               if (last && (now - last) <= DOUBLE_TAP_MS) {
                                 // double tap — toggle menu
-                                setOpenActionMsgId(prev => prev === msg.id ? null : msg.id);
+                                if (openActionMsgId !== msg.id) {
+                                  setOpenActionMsgId(msg.id);
+                                  // Auto-scroll to ensure message is visible
+                                  setTimeout(() => {
+                                    const ref = document.querySelector(`[data-action-container="${msg.id}"]`);
+                                    if (ref) {
+                                      ref.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                    }
+                                  }, 50);
+                                } else {
+                                  setOpenActionMsgId(null);
+                                }
                                 lastTapRef.current = null;
                               } else {
                                 lastTapRef.current = now;
@@ -1368,7 +1434,7 @@ const ChatWithFriend: React.FC = () => {
                             ) : msg.audioUrl ? (
                               <VoiceMessage audioUrl={msg.audioUrl} isOwn={isOwn} />
                             ) : (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: isOwn ? 'flex-end' : 'flex-start' }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: isOwn ? 'flex-end' : 'flex-start', position: 'relative' }}>
                                 <div className={isOwn ? styles.messageTextOwn : styles.messageTextOther}>
                                   <span>{msg.text}</span>
                                 </div>
@@ -1381,29 +1447,63 @@ const ChatWithFriend: React.FC = () => {
                                   )}
                                 </div>
 
-                                {/* Reactions line */}
+                                {/* Reactions as badge - positioned on message */}
                                 {msg.reactions && msg.reactions.length > 0 && (
                                   <div style={{
                                     display: 'flex',
-                                    gap: '8px',
-                                    marginTop: '8px',
+                                    gap: '6px',
+                                    marginTop: '-2px',
                                     alignItems: 'center',
-                                    flexWrap: 'wrap'
+                                    flexWrap: 'wrap',
+                                    position: 'relative',
+                                    zIndex: 5
                                   }}>
                                     {msg.reactions.map((reaction: any, idx: number) => (
                                       <div
                                         key={`${reaction.emoji}-${idx}`}
+                                        className={
+                                          removingReactions.has(`${msg.id}-${reaction.emoji}`)
+                                            ? 'reaction-remove'
+                                            : recentReactions[`${msg.id}-${reaction.emoji}`]
+                                            ? 'reaction-animate'
+                                            : ''
+                                        }
                                         style={{
-                                          display: 'flex',
+                                          display: 'inline-flex',
                                           alignItems: 'center',
-                                          gap: '3px',
-                                          position: 'relative'
+                                          gap: '2px',
+                                          position: 'relative',
+                                          background: 'rgba(100, 181, 246, 0.15)',
+                                          border: '1px solid rgba(100, 181, 246, 0.3)',
+                                          borderRadius: '12px',
+                                          padding: '2px 6px',
+                                          cursor: 'pointer',
+                                          transition: 'all 0.2s ease'
                                         }}
                                         title={reaction.users?.map((u: any) => u.login).join(', ') || 'No users'}
+                                        onMouseEnter={(e) => {
+                                          e.currentTarget.style.background = 'rgba(100, 181, 246, 0.25)';
+                                          e.currentTarget.style.borderColor = 'rgba(100, 181, 246, 0.5)';
+                                        }}
+                                        onMouseLeave={(e) => {
+                                          e.currentTarget.style.background = 'rgba(100, 181, 246, 0.15)';
+                                          e.currentTarget.style.borderColor = 'rgba(100, 181, 246, 0.3)';
+                                        }}
                                       >
                                         {/* Emoji */}
                                         <span 
                                           onClick={() => {
+                                            const reactionKey = `${msg.id}-${reaction.emoji}`;
+                                            // Mark as removing for animation
+                                            setRemovingReactions(prev => new Set([...prev, reactionKey]));
+                                            
+                                            // Optimistic update - remove immediately
+                                            setMessages(prev => prev.map(m => 
+                                              m.id === msg.id 
+                                                ? { ...m, reactions: (m.reactions || []).filter(r => r.emoji !== reaction.emoji) }
+                                                : m
+                                            ));
+                                            
                                             fetch('/api/messages/reactions', {
                                               method: 'POST',
                                               headers: { 'Content-Type': 'application/json' },
@@ -1415,95 +1515,57 @@ const ChatWithFriend: React.FC = () => {
                                                   ? { ...m, reactions: data.reactions || [] }
                                                   : m
                                               ));
-                                            }).catch(err => console.error('Reaction error:', err));
+                                              setTimeout(() => {
+                                                setRemovingReactions(prev => {
+                                                  const next = new Set(prev);
+                                                  next.delete(reactionKey);
+                                                  return next;
+                                                });
+                                              }, 300);
+                                            }).catch(err => {
+                                              console.error('Reaction error:', err);
+                                              // Revert on error
+                                              setMessages(prev => prev.map(m => 
+                                                m.id === msg.id 
+                                                  ? { ...m, reactions: [...(m.reactions || []), reaction] }
+                                                  : m
+                                              ));
+                                              setRemovingReactions(prev => {
+                                                const next = new Set(prev);
+                                                next.delete(reactionKey);
+                                                return next;
+                                              });
+                                            });
                                           }}
                                           style={{
                                             cursor: 'pointer',
-                                            fontSize: '18px',
-                                            transition: 'all 0.15s ease'
-                                          }}
-                                          onMouseEnter={(e) => {
-                                            e.currentTarget.style.transform = 'scale(1.3)';
-                                          }}
-                                          onMouseLeave={(e) => {
-                                            e.currentTarget.style.transform = 'scale(1)';
+                                            fontSize: '16px',
+                                            display: 'flex',
+                                            alignItems: 'center'
                                           }}
                                         >
                                           {reaction.emoji}
                                         </span>
 
-                                        {/* User avatars */}
-                                        {reaction.users && reaction.users.slice(0, 2).map((user: any, aidx: number) => (
-                                          <div
-                                            key={`user-${user.id}`}
-                                            style={{
-                                              width: '16px',
-                                              height: '16px',
-                                              borderRadius: '50%',
-                                              background: user.avatar ? `url(${user.avatar})` : '#0f7ff0',
-                                              backgroundSize: 'cover',
-                                              backgroundPosition: 'center',
-                                              display: 'flex',
-                                              alignItems: 'center',
-                                              justifyContent: 'center',
-                                              fontSize: '8px',
-                                              color: '#fff',
-                                              fontWeight: 'bold',
-                                              marginLeft: aidx > 0 ? '-6px' : '0',
-                                              border: '1.5px solid #0a0e11',
-                                              zIndex: 2 - aidx,
-                                              cursor: 'pointer',
-                                              transition: 'all 0.15s ease'
-                                            }}
-                                            title={user.login}
-                                            onMouseEnter={(e) => {
-                                              e.currentTarget.style.transform = 'scale(1.3)';
-                                            }}
-                                            onMouseLeave={(e) => {
-                                              e.currentTarget.style.transform = 'scale(1)';
-                                            }}
-                                          >
-                                            {!user.avatar && user.login?.charAt(0).toUpperCase()}
-                                          </div>
-                                        ))}
+                                        {/* User avatars or count */}
+                                        <span
+                                          style={{
+                                            fontSize: '11px',
+                                            color: '#64b5f6',
+                                            fontWeight: 'bold'
+                                          }}
+                                          title={reaction.users?.map((u: any) => u.login).join(', ')}
+                                        >
+                                          {reaction.count}
+                                        </span>
                                       </div>
                                     ))}
-                                    
-                                    {/* Add reaction button */}
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setOpenActionMsgId(prev => prev === msg.id ? null : msg.id);
-                                      }}
-                                      title="Add reaction"
-                                      style={{
-                                        background: 'transparent',
-                                        border: 'none',
-                                        padding: '4px 6px',
-                                        cursor: 'pointer',
-                                        fontSize: '18px',
-                                        color: '#666',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        transition: 'all 0.15s ease'
-                                      }}
-                                      onMouseEnter={(e) => {
-                                        e.currentTarget.style.color = '#aaa';
-                                        e.currentTarget.style.transform = 'scale(1.2)';
-                                      }}
-                                      onMouseLeave={(e) => {
-                                        e.currentTarget.style.color = '#666';
-                                        e.currentTarget.style.transform = 'scale(1)';
-                                      }}
-                                    >
-                                      ➕
-                                    </button>
                                   </div>
                                 )}
                               </div>
                             )}
 
-                            {/* Action menu with reactions */}
+                            {/* Action menu with reactions - TOP */}
                             {openActionMsgId === msg.id && (
                               <div
                                 className="action-menu"
@@ -1511,69 +1573,83 @@ const ChatWithFriend: React.FC = () => {
                                 role="menu"
                                 style={{
                                   position: 'absolute',
-                                  bottom: isMobile ? -160 : -150,
+                                  top: isMobile ? -80 : -70,
                                   right: isOwn ? (isMobile ? -8 : -12) : 'auto',
                                   left: isOwn ? 'auto' : (isMobile ? -8 : -12),
                                   background: 'rgba(15, 17, 19, 0.95)',
                                   backdropFilter: 'blur(8px)',
                                   border: '1px solid rgba(255,255,255,0.08)',
-                                  padding: isMobile ? '12px' : '14px',
-                                  borderRadius: 28,
+                                  padding: isMobile ? '8px 12px' : '8px 14px',
+                                  borderRadius: 20,
                                   display: 'flex',
-                                  flexDirection: 'column',
-                                  gap: isMobile ? 6 : 8,
+                                  flexDirection: 'row',
+                                  gap: isMobile ? 2 : 4,
                                   alignItems: 'center',
                                   boxShadow: '0 8px 32px rgba(0,0,0,0.8)',
                                   zIndex: 110,
-                                  transformOrigin: isOwn ? 'right top' : 'left top',
+                                  transformOrigin: isOwn ? 'right bottom' : 'left bottom',
                                   width: 'fit-content',
                                 }}
                                 data-action-container={msg.id}
                               >
-                                {/* Reactions picker */}
+                                {/* Reactions picker - horizontal bar style */}
                                 <div style={{
                                   display: 'flex',
-                                  gap: '4px',
-                                  flexWrap: 'wrap',
-                                  justifyContent: 'center',
-                                  maxWidth: '240px',
-                                  paddingBottom: '8px',
-                                  borderBottom: '1px solid rgba(255,255,255,0.1)',
-                                  width: '100%'
+                                  gap: '2px',
+                                  alignItems: 'center',
+                                  width: 'fit-content'
                                 }}>
                                   {['❤️', '👍', '👎', '💩'].map((emoji) => (
                                     <button
                                       key={emoji}
                                       onClick={(e) => {
                                         try { e.stopPropagation(); } catch {}
+                                        // Mark reaction for animation
+                                        const reactionKey = `${msg.id}-${emoji}`;
+                                        setRecentReactions(prev => ({ ...prev, [reactionKey]: Date.now() }));
+                                        setTimeout(() => {
+                                          setRecentReactions(prev => {
+                                            const next = { ...prev };
+                                            delete next[reactionKey];
+                                            return next;
+                                          });
+                                        }, 500);
+                                        
                                         fetch('/api/messages/reactions', {
                                           method: 'POST',
                                           headers: { 'Content-Type': 'application/json' },
                                           credentials: 'include',
                                           body: JSON.stringify({ messageId: msg.id, emoji })
-                                        }).then(r => r.json()).then(() => {
+                                        }).then(r => r.json()).then((data) => {
+                                          setMessages(prev => prev.map(m => 
+                                            m.id === msg.id 
+                                              ? { ...m, reactions: data.reactions || [] }
+                                              : m
+                                          ));
                                           setOpenActionMsgId(null);
                                         }).catch(err => console.error('Reaction error:', err));
                                       }}
-                                      title={`React with ${emoji}`}
+                                      title={emoji}
                                       style={{
-                                        background: 'rgba(255,255,255,0.06)',
-                                        border: '1px solid rgba(255,255,255,0.1)',
-                                        borderRadius: '10px',
-                                        padding: '6px 8px',
+                                        background: 'transparent',
+                                        border: 'none',
+                                        borderRadius: '8px',
+                                        padding: '4px 6px',
                                         cursor: 'pointer',
-                                        fontSize: '18px',
+                                        fontSize: '20px',
                                         transition: 'all 0.15s ease',
                                         display: 'flex',
                                         alignItems: 'center',
-                                        justifyContent: 'center'
+                                        justifyContent: 'center',
+                                        minWidth: '32px',
+                                        height: '32px'
                                       }}
                                       onMouseEnter={(e) => {
-                                        e.currentTarget.style.background = 'rgba(255,255,255,0.12)';
-                                        e.currentTarget.style.transform = 'scale(1.2)';
+                                        e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
+                                        e.currentTarget.style.transform = 'scale(1.15)';
                                       }}
                                       onMouseLeave={(e) => {
-                                        e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
+                                        e.currentTarget.style.background = 'transparent';
                                         e.currentTarget.style.transform = 'scale(1)';
                                       }}
                                     >
@@ -1581,7 +1657,36 @@ const ChatWithFriend: React.FC = () => {
                                     </button>
                                   ))}
                                 </div>
+                              </div>
+                            )}
 
+                            {/* Action menu with copy/delete - BOTTOM (only for own messages) */}
+                            {openActionMsgId === msg.id && isOwn && (
+                              <div
+                                className="action-menu action-menu-bottom"
+                                onClick={(e) => { e.stopPropagation(); }}
+                                role="menu"
+                                style={{
+                                  position: 'absolute',
+                                  bottom: isMobile ? -80 : -70,
+                                  right: isMobile ? -8 : -12,
+                                  left: 'auto',
+                                  background: 'rgba(15, 17, 19, 0.95)',
+                                  backdropFilter: 'blur(8px)',
+                                  border: '1px solid rgba(255,255,255,0.08)',
+                                  padding: isMobile ? '8px 12px' : '10px 12px',
+                                  borderRadius: 20,
+                                  display: 'flex',
+                                  flexDirection: 'row',
+                                  gap: isMobile ? 4 : 8,
+                                  alignItems: 'center',
+                                  boxShadow: '0 8px 32px rgba(0,0,0,0.8)',
+                                  zIndex: 110,
+                                  transformOrigin: 'right top',
+                                  width: 'fit-content',
+                                }}
+                                data-action-container={msg.id}
+                              >
                                 {/* Copy button */}
                                 <button
                                   onClick={(e) => { try { e.stopPropagation(); } catch {} handleCopy(msg.text); }}
@@ -1598,22 +1703,22 @@ const ChatWithFriend: React.FC = () => {
                                   style={{ 
                                     background: 'transparent', 
                                     border: 'none', 
-                                    padding: '10px 12px', 
+                                    padding: '8px 12px', 
                                     display: 'flex', 
                                     alignItems: 'center', 
                                     justifyContent: 'center', 
                                     cursor: 'pointer', 
                                     color: '#a8b5c4', 
-                                    borderRadius: 16, 
+                                    borderRadius: 12, 
                                     transition: 'all .15s ease',
-                                    width: '100%'
+                                    whiteSpace: 'nowrap'
                                   }}
                                 >
-                                  <svg width={18} height={18} viewBox="0 0 24 24" fill="none" style={{ display: 'block', color: 'inherit', marginRight: 8 }}>
+                                  <svg width={16} height={16} viewBox="0 0 24 24" fill="none" style={{ display: 'block', color: 'inherit', marginRight: 6 }}>
                                     <path d="M16 1H4a2 2 0 00-2 2v12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
                                     <rect x="8" y="5" width="13" height="13" rx="2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
                                   </svg>
-                                  <span style={{ fontSize: '13px', fontWeight: 500 }}>Копировать</span>
+                                  <span style={{ fontSize: '12px', fontWeight: 500 }}>Копировать</span>
                                 </button>
 
                                 {/* Delete button */}
@@ -1632,21 +1737,21 @@ const ChatWithFriend: React.FC = () => {
                                   style={{
                                     background: 'transparent',
                                     border: 'none',
-                                    padding: '10px 12px',
+                                    padding: '8px 12px',
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
                                     cursor: 'pointer',
                                     color: '#ff7b7b',
-                                    borderRadius: 16,
+                                    borderRadius: 12,
                                     transition: 'all .15s ease',
-                                    width: '100%'
+                                    whiteSpace: 'nowrap'
                                   }}
                                 >
-                                  <svg width={18} height={18} viewBox="0 0 24 24" fill="none" style={{ display: 'block', color: 'inherit', marginRight: 8 }}>
+                                  <svg width={16} height={16} viewBox="0 0 24 24" fill="none" style={{ display: 'block', color: 'inherit', marginRight: 6 }}>
                                     <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
                                   </svg>
-                                  <span style={{ fontSize: '13px', fontWeight: 500 }}>Удалить</span>
+                                  <span style={{ fontSize: '12px', fontWeight: 500 }}>Удалить</span>
                                 </button>
                               </div>
                             )}

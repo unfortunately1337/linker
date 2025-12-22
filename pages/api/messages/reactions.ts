@@ -25,43 +25,68 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     try {
       // Try to use database first
       try {
+        console.log('[REACTION POST] Start:', { messageId, userId, emoji });
+        
         const existingReaction = await prisma.reaction.findUnique({
           where: { messageId_userId_emoji: { messageId, userId, emoji } }
         });
 
         if (existingReaction) {
+          // User is toggling off this reaction
           await prisma.reaction.delete({ where: { id: existingReaction.id } });
-          console.log('[REACTION] Deleted:', { messageId, userId, emoji });
+          console.log('[REACTION] Deleted (toggle off):', { messageId, userId, emoji });
         } else {
+          // User wants to add a new reaction - first remove ANY other reactions from this user on this message
+          const oldReactions = await prisma.reaction.findMany({
+            where: { messageId, userId },
+            select: { id: true, emoji: true }
+          });
+          
+          if (oldReactions.length > 0) {
+            console.log('[REACTION] Found old reactions to remove:', oldReactions);
+            await prisma.reaction.deleteMany({
+              where: { messageId, userId }
+            });
+            console.log('[REACTION] Removed previous reactions for user:', { messageId, userId, count: oldReactions.length });
+          }
+          
+          // Now add the new reaction
           await prisma.reaction.create({
             data: { messageId, userId, emoji }
           });
-          console.log('[REACTION] Created:', { messageId, userId, emoji });
+          console.log('[REACTION] Created new:', { messageId, userId, emoji });
         }
 
         // Get all reactions for this message
-        const reactions = await prisma.reaction.groupBy({
-          by: ['emoji'],
+        const allReactionsForMsg = await prisma.reaction.findMany({
           where: { messageId },
-          _count: { id: true }
+          select: {
+            messageId: true,
+            emoji: true,
+            user: { select: { id: true, login: true, avatar: true } }
+          }
         });
 
-        const reactionsWithUsers = await Promise.all(
-          reactions.map(async (reaction) => {
-            const users = await prisma.reaction.findMany({
-              where: { messageId, emoji: reaction.emoji },
-              select: { user: { select: { id: true, login: true, avatar: true } } }
-            });
-            return {
-              emoji: reaction.emoji,
-              count: reaction._count.id,
-              userIds: users.map(r => r.user.id),
-              users: users.map(r => r.user)
-            };
-          })
-        );
+        console.log('[REACTION] All reactions for message after action:', { messageId, count: allReactionsForMsg.length, emojis: [...new Set(allReactionsForMsg.map(r => r.emoji))] });
 
-        console.log('[REACTION] Response:', { messageId, reactions: reactionsWithUsers });
+        // Group by emoji
+        const reactionsMap: Record<string, any> = {};
+        for (const reaction of allReactionsForMsg) {
+          if (!reactionsMap[reaction.emoji]) {
+            reactionsMap[reaction.emoji] = {
+              emoji: reaction.emoji,
+              count: 0,
+              users: [],
+              userIds: []
+            };
+          }
+          reactionsMap[reaction.emoji].count += 1;
+          reactionsMap[reaction.emoji].users.push(reaction.user);
+          reactionsMap[reaction.emoji].userIds.push(reaction.user.id);
+        }
+
+        const reactionsWithUsers = Object.values(reactionsMap);
+        console.log('[REACTION] Response:', { messageId, reactions: reactionsWithUsers.map(r => ({ emoji: r.emoji, count: r.count })) });
         return res.status(200).json({ messageId, reactions: reactionsWithUsers });
       } catch (dbErr) {
         // Fallback to in-memory if DB fails

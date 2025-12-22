@@ -75,30 +75,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       let reactionsMap: Record<string, any[]> = {};
       
       try {
-        const reactionsFromDb = await prisma.reaction.groupBy({
-          by: ['messageId', 'emoji'],
-          where: { messageId: { in: messageIds } }
+        // Get all reactions with user data in one query
+        const reactionsFromDb = await prisma.reaction.findMany({
+          where: { messageId: { in: messageIds } },
+          select: {
+            messageId: true,
+            emoji: true,
+            user: { select: { id: true, login: true, avatar: true } }
+          }
         });
 
-        // Build reactions map with user data
+        // Group by messageId and emoji
         for (const reaction of reactionsFromDb) {
           if (!reactionsMap[reaction.messageId]) {
             reactionsMap[reaction.messageId] = [];
           }
           
-          // Get users for this reaction
-          const users = await prisma.reaction.findMany({
-            where: { messageId: reaction.messageId, emoji: reaction.emoji },
-            select: { user: { select: { id: true, login: true, avatar: true } } }
-          });
-          
           const existing = reactionsMap[reaction.messageId].find(r => r.emoji === reaction.emoji);
-          if (!existing) {
+          if (existing) {
+            existing.count += 1;
+            existing.users.push(reaction.user);
+            existing.userIds.push(reaction.user.id);
+          } else {
             reactionsMap[reaction.messageId].push({
               emoji: reaction.emoji,
-              count: users.length,
-              userIds: users.map(u => u.user.id),
-              users: users.map(u => u.user)
+              count: 1,
+              userIds: [reaction.user.id],
+              users: [reaction.user]
             });
           }
         }

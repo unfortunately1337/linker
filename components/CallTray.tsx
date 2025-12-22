@@ -28,8 +28,8 @@ export const CallTray: React.FC<CallTrayProps> = ({
   }, [callState, elapsed]);
 
   const statusColor = useMemo(() => {
-    if (callState === 'in-call') return '#22c55e';
-    if (callState === 'ringing') return '#fbbf24';
+    if (callState === 'in-call') return '#31a24c';
+    if (callState === 'ringing') return '#f59e0b';
     return '#60a5fa';
   }, [callState]);
 
@@ -57,10 +57,10 @@ export const CallTray: React.FC<CallTrayProps> = ({
             gap: 12,
             padding: '12px 14px 12px 12px',
             borderRadius: 12,
-            background: 'linear-gradient(135deg, rgba(66, 165, 245, 0.2), rgba(66, 165, 245, 0.08))',
+            background: 'linear-gradient(135deg, rgba(49, 162, 76, 0.2), rgba(49, 162, 76, 0.08))',
             backdropFilter: 'blur(12px)',
             color: '#fff',
-            border: '1px solid rgba(66, 165, 245, 0.3)',
+            border: '1px solid rgba(49, 162, 76, 0.3)',
             cursor: 'pointer',
             boxShadow: '0 12px 32px rgba(0, 0, 0, 0.6), inset 0 1px 1px rgba(255, 255, 255, 0.08)',
             transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
@@ -68,12 +68,12 @@ export const CallTray: React.FC<CallTrayProps> = ({
             fontSize: '13px'
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'linear-gradient(135deg, rgba(66, 165, 245, 0.3), rgba(66, 165, 245, 0.15))';
-            e.currentTarget.style.boxShadow = '0 14px 36px rgba(66, 165, 245, 0.15), inset 0 1px 1px rgba(255, 255, 255, 0.12)';
+            e.currentTarget.style.background = 'linear-gradient(135deg, rgba(49, 162, 76, 0.3), rgba(49, 162, 76, 0.15))';
+            e.currentTarget.style.boxShadow = '0 14px 36px rgba(49, 162, 76, 0.15), inset 0 1px 1px rgba(255, 255, 255, 0.12)';
             e.currentTarget.style.transform = 'translateY(-2px)';
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'linear-gradient(135deg, rgba(66, 165, 245, 0.2), rgba(66, 165, 245, 0.08))';
+            e.currentTarget.style.background = 'linear-gradient(135deg, rgba(49, 162, 76, 0.2), rgba(49, 162, 76, 0.08))';
             e.currentTarget.style.boxShadow = '0 12px 32px rgba(0, 0, 0, 0.6), inset 0 1px 1px rgba(255, 255, 255, 0.08)';
             e.currentTarget.style.transform = 'translateY(0)';
           }}
@@ -100,9 +100,9 @@ export const CallTray: React.FC<CallTrayProps> = ({
                   width: 14,
                   height: 14,
                   borderRadius: '50%',
-                  background: '#22c55e',
+                  background: '#31a24c',
                   border: '2px solid rgba(20, 21, 25, 0.95)',
-                  boxShadow: '0 2px 6px rgba(34, 197, 94, 0.4)'
+                  boxShadow: '0 2px 6px rgba(49, 162, 76, 0.4)'
                 }}
               />
             )}
@@ -142,6 +142,10 @@ export const CallTray: React.FC<CallTrayProps> = ({
         @keyframes glow-pulse {
           0%, 100% { transform: scale(1); }
           50% { transform: scale(1.02); }
+        }
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.6; }
         }
       `}</style>
 
@@ -196,9 +200,9 @@ export const CallTray: React.FC<CallTrayProps> = ({
                 width: 14,
                 height: 14,
                 borderRadius: '50%',
-                background: '#22c55e',
+                background: '#31a24c',
                 border: '2px solid rgba(20, 21, 25, 0.95)',
-                boxShadow: '0 2px 8px rgba(34, 197, 94, 0.6)'
+                boxShadow: '0 2px 8px rgba(49, 162, 76, 0.6)'
               }}
             />
           )}

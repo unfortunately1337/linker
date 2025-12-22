@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 
 type CallStatus = 'calling' | 'ringing' | 'connecting' | 'in-call' | 'ended';
 
@@ -10,7 +10,7 @@ interface CallWindowProps {
   elapsed: string;
   signalingTime: string;
   muted: boolean;
-  endedReason?: 'declined' | 'ended';
+  endedReason?: 'declined' | 'ended' | 'cancelled' | 'timeout';
   startedAt?: number;
   endedAt?: number;
   onAccept: () => Promise<void> | void;
@@ -40,6 +40,76 @@ export const CallWindow: React.FC<CallWindowProps> = ({
   const isConnecting = status === 'connecting';
   const isActive = status === 'in-call';
   const isEnded = status === 'ended';
+  const [isAccepting, setIsAccepting] = useState(false);
+  const [audioLevel, setAudioLevel] = useState(0);
+  const [wasInCall, setWasInCall] = useState(false);
+
+  React.useEffect(() => {
+    if (isActive) {
+      setWasInCall(true);
+    }
+  }, [isActive]);
+
+  const handleAccept = async () => {
+    setIsAccepting(true);
+    try {
+      await onAccept();
+    } finally {
+      setIsAccepting(false);
+    }
+  };
+
+  // Monitor audio levels for visual feedback
+  React.useEffect(() => {
+    if (!isActive) return;
+
+    let animationId: number;
+    let audioContext: AudioContext | null = null;
+    let analyser: AnalyserNode | null = null;
+
+    const startAudioMonitoring = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const source = audioContext.createMediaStreamSource(stream);
+        analyser = audioContext.createAnalyser();
+        analyser.fftSize = 256;
+        source.connect(analyser);
+
+        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+        const analyzeAudio = () => {
+          analyser!.getByteFrequencyData(dataArray);
+          const average = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
+          setAudioLevel(Math.min(average / 255, 1));
+          animationId = requestAnimationFrame(analyzeAudio);
+        };
+
+        analyzeAudio();
+      } catch (err) {
+        console.log('Audio monitoring not available:', err);
+      }
+    };
+
+    startAudioMonitoring();
+
+    return () => {
+      cancelAnimationFrame(animationId);
+      if (audioContext) {
+        audioContext.close();
+      }
+    };
+  }, [isActive]);
+
+  // Auto-close ended call screen after 2 seconds
+  React.useEffect(() => {
+    if (isEnded) {
+      const timer = setTimeout(() => {
+        onEnd();
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [isEnded, onEnd]);
 
   return (
     <div
@@ -51,348 +121,200 @@ export const CallWindow: React.FC<CallWindowProps> = ({
         alignItems: 'center',
         justifyContent: 'center',
         pointerEvents: 'auto',
-        background: 'linear-gradient(135deg, rgba(15,17,19,0.95), rgba(10,12,15,0.98))',
-        backdropFilter: 'blur(20px)'
+        background: 'rgba(0, 0, 0, 0.95)',
+        backdropFilter: 'blur(12px)'
       }}
     >
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          background: 'radial-gradient(circle at 30% 50%, rgba(33,150,243,0.08), transparent 50%), radial-gradient(circle at 70% 50%, rgba(244,67,54,0.04), transparent 50%)'
-        }}
-      />
-
       <style>{`
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.7; }
-        }
-        @keyframes scaleIn {
-          from { transform: scale(0.8) rotateX(45deg); opacity: 0; }
-          to { transform: scale(1) rotateX(0deg); opacity: 1; }
-        }
-        @keyframes float {
-          0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(30px); }
-        }
-        @keyframes slideUp {
-          from { transform: translateY(30px); opacity: 0; }
+        @keyframes slideIn {
+          from { transform: translateY(20px); opacity: 0; }
           to { transform: translateY(0); opacity: 1; }
         }
         @keyframes ring {
-          0%, 100% { transform: rotate(0deg); }
-          10% { transform: rotate(-15deg); }
-          20% { transform: rotate(15deg); }
-          30% { transform: rotate(-15deg); }
-          40% { transform: rotate(0deg); }
+          0%, 100% { transform: rotate(-8deg); }
+          50% { transform: rotate(8deg); }
         }
-        @keyframes glow {
-          0%, 100% { box-shadow: 0 0 20px rgba(34, 197, 94, 0.4); }
-          50% { box-shadow: 0 0 40px rgba(34, 197, 94, 0.8); }
+        @keyframes float {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(12px); }
         }
-        @keyframes checkmark {
-          0% { stroke-dasharray: 50; stroke-dashoffset: 50; opacity: 0; }
-          50% { opacity: 1; }
-          100% { stroke-dasharray: 50; stroke-dashoffset: 0; }
+        @keyframes pulse-ring {
+          0% { box-shadow: 0 0 0 0 rgba(49, 162, 76, 0.7); }
+          70% { box-shadow: 0 0 0 25px rgba(49, 162, 76, 0); }
+          100% { box-shadow: 0 0 0 0 rgba(49, 162, 76, 0); }
         }
-        @keyframes pulse-glow {
-          0% { box-shadow: inset 0 0 0 0 rgba(34, 197, 94, 0.4); }
-          100% { box-shadow: inset 0 0 0 50px rgba(34, 197, 94, 0); }
+        @keyframes wave {
+          0% { transform: scale(1); opacity: 1; }
+          100% { transform: scale(2.5); opacity: 0; }
         }
-        @keyframes rotate {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
+        @keyframes wave-delay-1 {
+          0% { transform: scale(1); opacity: 1; }
+          100% { transform: scale(2.5); opacity: 0; }
         }
-        @keyframes smile-bounce {
-          0%, 100% { transform: scale(1) translateY(0); }
-          50% { transform: scale(1.1) translateY(-10px); }
-        }
-        @keyframes wink-open {
-          0%, 100% { opacity: 1; }
-          45%, 55% { opacity: 0; }
-        }
-        @keyframes wink-close {
-          0%, 100% { opacity: 0; }
-          45%, 55% { opacity: 1; }
+        @keyframes wave-delay-2 {
+          0% { transform: scale(1); opacity: 1; }
+          100% { transform: scale(2.5); opacity: 0; }
         }
       `}</style>
 
       {isEnded ? (
+        // Ended call screen
         <div
           style={{
             position: 'relative',
             width: '100%',
-            maxWidth: '100vw',
-            height: '100vh',
+            height: '100%',
             zIndex: 2010,
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: 20
+            padding: '20px',
+            animation: 'slideIn 0.3s ease-out'
           }}
         >
-          {/* Animated background circles */}
           <div
             style={{
-              position: 'absolute',
-              width: 300,
-              height: 300,
-              borderRadius: '50%',
-              background:
-                endedReason === 'declined'
-                  ? 'radial-gradient(circle, rgba(239,68,68,0.15), transparent)'
-                  : 'radial-gradient(circle, rgba(66, 165, 245, 0.15), transparent)',
-              top: '20%',
-              left: '15%',
-              animation: 'float 6s ease-in-out infinite'
-            }}
-          />
-          <div
-            style={{
-              position: 'absolute',
-              width: 250,
-              height: 250,
-              borderRadius: '50%',
-              background: 'radial-gradient(circle, rgba(33,150,243,0.1), transparent)',
-              bottom: '15%',
-              right: '10%',
-              animation: 'float 8s ease-in-out infinite'
-            }}
-          />
-
-          {/* Main content */}
-          <div
-            style={{
-              position: 'relative',
-              zIndex: 2011,
-              textAlign: 'center',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              animation: 'slideUp 0.4s cubic-bezier(0.4, 0, 0.2, 1)'
+              gap: 16,
+              marginBottom: 40
             }}
           >
-            {/* Status icon with animation */}
-            <div
+            <img
+              src={targetAvatar || '/window.svg'}
+              alt="avatar"
               style={{
-                marginBottom: 40,
-                animation: 'scaleIn 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
+                width: 140,
+                height: 140,
+                borderRadius: '50%',
+                objectFit: 'cover',
+                background: '#1a1a1a'
               }}
-            >
-              <div
-                style={{
-                  position: 'relative',
-                  width: 160,
-                  height: 160,
-                  borderRadius: '50%',
-                  background:
-                    endedReason === 'declined'
-                      ? 'linear-gradient(135deg, rgba(239,68,68,0.25), rgba(220,38,38,0.15))'
-                      : isActive
-                        ? 'linear-gradient(135deg, rgba(34,197,94,0.25), rgba(22,163,74,0.15))'
-                        : 'linear-gradient(135deg, rgba(66, 165, 245, 0.25), rgba(59, 130, 246, 0.15))',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  border: `3px solid ${endedReason === 'declined' ? 'rgba(239,68,68,0.5)' : isActive ? 'rgba(34,197,94,0.5)' : 'rgba(66, 165, 245, 0.5)'}`,
-                  boxShadow: `0 0 50px ${endedReason === 'declined' ? 'rgba(239,68,68,0.25)' : isActive ? 'rgba(34,197,94,0.25)' : 'rgba(66, 165, 245, 0.25)'}`,
-                  overflow: 'hidden'
-                }}
-              >
-                {endedReason === 'declined' ? (
-                  <svg
-                    width="80"
-                    height="80"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="#ef4444"
-                    strokeWidth="2"
-                  >
-                    <path d="M18 6L6 18M6 6l12 12" />
-                  </svg>
-                ) : isActive ? (
-                  <>
-                    <svg
-                      width="80"
-                      height="80"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="#22c55e"
-                      strokeWidth="2"
-                      style={{
-                        animation: 'checkmark 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55)'
-                      }}
-                    >
-                      <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                    <div
-                      style={{
-                        position: 'absolute',
-                        inset: 0,
-                        borderRadius: '50%',
-                        background: 'radial-gradient(circle, rgba(34, 197, 94, 0.2), transparent)',
-                        animation: 'pulse-glow 1.5s ease-in-out'
-                      }}
-                    />
-                  </>
-                ) : (
-                  <div
-                    style={{
-                      position: 'relative',
-                      width: '100px',
-                      height: '100px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      animation: 'smile-bounce 2s ease-in-out infinite'
-                    }}
-                  >
-                    <div
-                      style={{
-                        position: 'absolute',
-                        fontSize: '80px',
-                        fontWeight: 'bold',
-                        color: '#3b82f6',
-                        textShadow: '0 0 30px rgba(66, 165, 245, 0.8)',
-                        fontFamily: 'monospace',
-                        letterSpacing: '2px',
-                        opacity: 1,
-                        animation: 'wink-open 2s ease-in-out infinite'
-                      }}
-                    >
-                      :)
-                    </div>
-                    <div
-                      style={{
-                        position: 'absolute',
-                        fontSize: '80px',
-                        fontWeight: 'bold',
-                        color: '#3b82f6',
-                        textShadow: '0 0 30px rgba(66, 165, 245, 0.8)',
-                        fontFamily: 'monospace',
-                        letterSpacing: '2px',
-                        opacity: 0,
-                        animation: 'wink-close 2s ease-in-out infinite'
-                      }}
-                    >
-                      ;)
-                    </div>
-                  </div>
-                )}
-              </div>
+            />
+            <div style={{ fontWeight: 600, fontSize: 20, color: '#fff' }}>
+              {targetName || 'Неизвестный'}
             </div>
+          </div>
 
-            {/* Status text */}
-            <div
-              style={{
-                color: '#fff',
-                fontWeight: 800,
-                fontSize: 36,
-                marginBottom: 16,
-                letterSpacing: '-0.8px'
-              }}
-            >
-              {endedReason === 'declined' ? 'Звонок отклонён' : 'Звонок завершился'}
-            </div>
-
-            {/* Call duration */}
-            <div
-              style={{
-                color: '#a0aec0',
-                fontSize: 18,
-                fontWeight: 500,
-                marginBottom: 40
-              }}
-            >
-              {endedReason === 'declined'
-                ? 'Вы отклонили звонок'
-                : startedAt && endedAt && (endedAt - startedAt > 1000)
-                  ? (() => {
-                      const ms = Math.max(0, endedAt - startedAt);
-                      const s = Math.floor(ms / 1000);
-                      const mm = String(Math.floor(s / 60)).padStart(2, '0');
-                      const ss = String(s % 60).padStart(2, '0');
-                      return `Разговор длился ${mm}:${ss}`;
-                    })()
-                  : 'Звонок завершился'}
-            </div>
-
-            {/* Person info */}
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: 16,
-                marginBottom: 48
-              }}
-            >
-              <img
-                src={targetAvatar || '/window.svg'}
-                alt="avatar"
-                style={{
-                  width: 120,
-                  height: 120,
-                  borderRadius: '50%',
-                  objectFit: 'cover',
-                  background: '#1a1c1f',
-                  border: '3px solid rgba(255,255,255,0.1)'
-                }}
-              />
-              <div style={{ fontWeight: 700, fontSize: 22, color: '#fff', letterSpacing: '-0.3px' }}>
-                {targetName || 'Неизвестный'}
-              </div>
-            </div>
-
-
+          <div
+            style={{
+              color: (endedReason === 'declined' || endedReason === 'cancelled' || endedReason === 'timeout' || (startedAt && endedAt && (endedAt - startedAt) < 2000)) ? '#e84c3d' : '#a0aec0',
+              fontSize: 16,
+              fontWeight: 500,
+              marginBottom: 48,
+              textAlign: 'center'
+            }}
+          >
+            {endedReason === 'declined'
+              ? 'Вы отклонили звонок'
+              : endedReason === 'cancelled'
+                ? 'Звонок отменён'
+                : endedReason === 'timeout'
+                  ? 'Не удалось дозвониться'
+                  : startedAt && endedAt && (endedAt - startedAt) < 2000
+                    ? 'Звонок отменён'
+                    : wasInCall && startedAt && endedAt && (endedAt - startedAt > 1000)
+                      ? (() => {
+                          const ms = Math.max(0, endedAt - startedAt);
+                          const s = Math.floor(ms / 1000);
+                          const mm = String(Math.floor(s / 60)).padStart(2, '0');
+                          const ss = String(s % 60).padStart(2, '0');
+                          return `Разговор длился ${mm}:${ss}`;
+                        })()
+                      : 'Звонок завершился'}
           </div>
         </div>
       ) : (
-        // Active call or incoming/outgoing
+        // Active/incoming/outgoing call
         <div
           style={{
             position: 'relative',
-            width: 420,
-            maxWidth: '92vw',
-            background: 'linear-gradient(135deg, rgba(20,21,25,0.95), rgba(15,17,19,0.98))',
-            borderRadius: 24,
-            padding: 40,
-            boxShadow:
-              '0 25px 70px rgba(0,0,0,0.9), inset 0 1px 1px rgba(255,255,255,0.05)',
-            color: '#fff',
+            width: '100%',
+            height: '100%',
             zIndex: 2010,
-            border: '1px solid rgba(255,255,255,0.04)',
-            animation: 'slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
             display: 'flex',
             flexDirection: 'column',
-            alignItems: 'center'
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '60px 20px 40px',
+            animation: 'slideIn 0.3s ease-out'
           }}
         >
-          {/* Avatar section - large circular */}
+          {/* Top section */}
           <div
             style={{
-              position: 'relative',
-              marginBottom: 24,
               display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 16,
+              flex: 1,
               justifyContent: 'center',
-              width: '100%'
+              position: 'relative'
             }}
           >
+            {/* Incoming call waves */}
+            {isIncoming && (
+              <>
+                <div
+                  style={{
+                    position: 'absolute',
+                    width: 200,
+                    height: 200,
+                    borderRadius: '50%',
+                    border: '2px solid rgba(49, 162, 76, 0.6)',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    animation: 'wave 1.5s ease-out infinite',
+                    pointerEvents: 'none'
+                  }}
+                />
+                <div
+                  style={{
+                    position: 'absolute',
+                    width: 200,
+                    height: 200,
+                    borderRadius: '50%',
+                    border: '2px solid rgba(49, 162, 76, 0.4)',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    animation: 'wave 1.5s ease-out infinite 0.5s',
+                    pointerEvents: 'none'
+                  }}
+                />
+                <div
+                  style={{
+                    position: 'absolute',
+                    width: 200,
+                    height: 200,
+                    borderRadius: '50%',
+                    border: '2px solid rgba(49, 162, 76, 0.2)',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    animation: 'wave 1.5s ease-out infinite 1s',
+                    pointerEvents: 'none'
+                  }}
+                />
+              </>
+            )}
+            
+            {/* Avatar */}
             <div
               style={{
                 position: 'relative',
                 width: 200,
                 height: 200,
                 borderRadius: '50%',
-                background: '#f5f5f5',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
                 overflow: 'hidden',
-                boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-                border: '4px solid #fff'
+                boxShadow: `0 8px 32px rgba(0,0,0,0.5), 0 0 0 ${4 + audioLevel * 8}px rgba(49, 162, 76, ${0.3 * audioLevel})`,
+                animation: isActive ? 'none' : isIncoming ? 'ring 0.8s ease-in-out infinite' : 'float 3s ease-in-out infinite',
+                transform: `scale(${1 + audioLevel * 0.08})`,
+                transition: 'transform 0.05s ease-out, box-shadow 0.05s ease-out',
+                zIndex: 1
               }}
             >
               <img
@@ -404,44 +326,41 @@ export const CallWindow: React.FC<CallWindowProps> = ({
                   objectFit: 'cover'
                 }}
               />
+
               {isActive && (
                 <div
                   style={{
                     position: 'absolute',
-                    bottom: 12,
-                    right: 12,
-                    width: 28,
-                    height: 28,
+                    inset: 0,
                     borderRadius: '50%',
-                    background: '#22c55e',
-                    border: '3px solid #fff',
-                    animation: 'glow 2s ease-in-out infinite',
-                    boxShadow: '0 0 20px rgba(34, 197, 94, 0.8)'
+                    border: `3px solid rgba(49, 162, 76, ${0.6 + audioLevel * 0.4})`,
+                    animation: 'pulse-ring 1.5s ease-out infinite',
+                    boxShadow: `inset 0 0 20px rgba(49, 162, 76, ${audioLevel * 0.5})`
                   }}
                 />
               )}
             </div>
-          </div>
 
-          {/* Name and status */}
-          <div style={{ textAlign: 'center', marginBottom: 28, width: '100%' }}>
+            {/* Name */}
             <div
               style={{
-                fontWeight: 800,
-                fontSize: 26,
-                marginBottom: 8,
-                letterSpacing: '-0.3px'
+                fontWeight: '600',
+                fontSize: '24px',
+                color: '#fff',
+                textAlign: 'center',
+                maxWidth: '90%'
               }}
             >
               {targetName || 'Звонок'}
             </div>
 
+            {/* Status */}
             <div
               style={{
                 color: '#a0aec0',
-                fontSize: 14,
-                fontWeight: 500,
-                letterSpacing: '0.2px'
+                fontSize: '14px',
+                fontWeight: '500',
+                minHeight: '20px'
               }}
             >
               {isOutgoing
@@ -456,166 +375,141 @@ export const CallWindow: React.FC<CallWindowProps> = ({
             </div>
           </div>
 
-          {/* Controls - bottom row with 4 buttons */}
+          {/* Bottom controls */}
           <div
             style={{
               display: 'flex',
-              gap: 16,
+              gap: 20,
               justifyContent: 'center',
+              alignItems: 'center',
               width: '100%',
-              flexWrap: 'wrap'
+              flexWrap: 'wrap',
+              paddingBottom: 20
             }}
           >
             {isIncoming ? (
               <>
-                {/* Accept button - green */}
+                {/* Accept */}
                 <button
-                  onClick={onAccept}
+                  onClick={handleAccept}
+                  disabled={isAccepting}
                   title="Принять"
                   style={{
-                    width: 56,
-                    height: 56,
+                    width: 68,
+                    height: 68,
                     borderRadius: '50%',
                     border: 'none',
-                    background: '#22c55e',
+                    background: '#31a24c',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    cursor: 'pointer',
-                    boxShadow: '0 4px 12px rgba(34,197,94,0.4)',
+                    cursor: isAccepting ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 6px 20px rgba(49, 162, 76, 0.4)',
                     transition: 'all 0.2s ease',
-                    transform: 'scale(1)'
+                    transform: 'scale(1)',
+                    opacity: isAccepting ? 0.8 : 1
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = 'scale(1.08)';
+                    if (!isAccepting) {
+                      e.currentTarget.style.transform = 'scale(1.1)';
+                      e.currentTarget.style.boxShadow = '0 8px 24px rgba(49, 162, 76, 0.5)';
+                    }
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.transform = 'scale(1)';
+                    e.currentTarget.style.boxShadow = '0 6px 20px rgba(49, 162, 76, 0.4)';
                   }}
                 >
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="white" stroke="white" strokeWidth="2">
-                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="white">
+                    <path d="M3 9.5c0-1.5 1-3.5 2.5-5s3.5-2.5 5-2.5c1.5 0 3 1 4 2l1 1.5c.5.5 1 1.5 1 2.5 0 1-1 2-2 2s-2-1-2-2c0-.5.5-1 1-1.5l-1-1.5c-.5-.5-1.5-1-2-1s-1.5.5-2.5 1.5c-1 1-2 2.5-2 4s.5 3 2 5l2 2c1.5 1.5 3.5 2.5 5.5 2.5s4-1 5.5-2.5l1.5-1.5c1.5-1.5 2.5-3.5 2.5-5.5 0-1-.5-2-1-3l-1.5 1.5c.5 1 1 2 1 2.5 0 1.5-1 3.5-2.5 5s-3.5 2.5-5 2.5c-1.5 0-3-1-4-2l-2-2c-1.5-1.5-2.5-3-2.5-5z" />
                   </svg>
                 </button>
 
-                {/* Decline button - red */}
+                {/* Decline */}
                 <button
                   onClick={onEnd}
                   title="Отклонить"
                   style={{
-                    width: 56,
-                    height: 56,
+                    width: 68,
+                    height: 68,
                     borderRadius: '50%',
                     border: 'none',
-                    background: '#ef4444',
+                    background: '#e84c3d',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     cursor: 'pointer',
-                    boxShadow: '0 4px 12px rgba(239,68,68,0.4)',
-                    transition: 'all 0.2s ease',
-                    transform: 'scale(1)'
+                    boxShadow: '0 6px 20px rgba(232, 76, 61, 0.4)',
+                    transition: 'all 0.2s ease'
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = 'scale(1.08)';
+                    e.currentTarget.style.transform = 'scale(1.1)';
+                    e.currentTarget.style.boxShadow = '0 8px 24px rgba(232, 76, 61, 0.5)';
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.transform = 'scale(1)';
+                    e.currentTarget.style.boxShadow = '0 6px 20px rgba(232, 76, 61, 0.4)';
                   }}
                 >
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="white" stroke="white" strokeWidth="2">
-                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" style={{ transform: 'rotate(135deg)' }} />
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="white">
+                    <path d="M21 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 21 16.92z" style={{ transform: 'rotate(135deg)' }} />
                   </svg>
                 </button>
               </>
             ) : (
               <>
-                {/* Screen share */}
+                {/* Minimize button */}
                 <button
                   onClick={onMinimize}
-                  title="Экран"
+                  title="Свернуть звонок"
                   style={{
-                    width: 56,
-                    height: 56,
+                    width: 54,
+                    height: 54,
                     borderRadius: '50%',
                     border: 'none',
-                    background: 'rgba(100, 116, 139, 0.3)',
+                    background: 'rgba(255,255,255,0.1)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     cursor: 'pointer',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
                     transition: 'all 0.2s ease'
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'rgba(100, 116, 139, 0.5)';
+                    e.currentTarget.style.background = 'rgba(255,255,255,0.15)';
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'rgba(100, 116, 139, 0.3)';
+                    e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
                   }}
                 >
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="2">
-                    <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-                    <line x1="8" y1="21" x2="16" y2="21"></line>
-                    <line x1="12" y1="17" x2="12" y2="21"></line>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="6 9 12 15 18 9"></polyline>
                   </svg>
                 </button>
 
-                {/* End call - red */}
-                <button
-                  onClick={onEnd}
-                  title="Завершить"
-                  style={{
-                    width: 56,
-                    height: 56,
-                    borderRadius: '50%',
-                    border: 'none',
-                    background: '#ef4444',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    boxShadow: '0 4px 12px rgba(239,68,68,0.4)',
-                    transition: 'all 0.2s ease',
-                    transform: 'scale(1)'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = 'scale(1.08)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = 'scale(1)';
-                  }}
-                >
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="white" stroke="white" strokeWidth="2">
-                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" style={{ transform: 'rotate(135deg)' }} />
-                  </svg>
-                </button>
-
-                {/* Mute/unmute */}
+                {/* Mute */}
                 <button
                   onClick={onToggleMute}
                   title={muted ? 'Включить микрофон' : 'Выключить микрофон'}
                   style={{
-                    width: 56,
-                    height: 56,
+                    width: 54,
+                    height: 54,
                     borderRadius: '50%',
                     border: 'none',
-                    background: muted ? 'rgba(239, 68, 68, 0.4)' : 'rgba(100, 116, 139, 0.3)',
+                    background: muted ? 'rgba(232, 76, 61, 0.25)' : 'rgba(255,255,255,0.1)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     cursor: 'pointer',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
                     transition: 'all 0.2s ease'
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = muted ? 'rgba(239, 68, 68, 0.6)' : 'rgba(100, 116, 139, 0.5)';
+                    e.currentTarget.style.background = muted ? 'rgba(232, 76, 61, 0.4)' : 'rgba(255,255,255,0.15)';
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.background = muted ? 'rgba(239, 68, 68, 0.4)' : 'rgba(100, 116, 139, 0.3)';
+                    e.currentTarget.style.background = muted ? 'rgba(232, 76, 61, 0.25)' : 'rgba(255,255,255,0.1)';
                   }}
                 >
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={muted ? '#ef4444' : '#cbd5e1'} strokeWidth="2">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={muted ? '#e84c3d' : '#fff'} strokeWidth="2">
                     {muted ? (
                       <>
                         <path d="M1 9v6a7 7 0 0 0 7 7h8m0-13V3a7 7 0 0 0-7 7v6" />
@@ -627,6 +521,37 @@ export const CallWindow: React.FC<CallWindowProps> = ({
                         <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
                       </>
                     )}
+                  </svg>
+                </button>
+
+                {/* End call */}
+                <button
+                  onClick={onEnd}
+                  title="Завершить"
+                  style={{
+                    width: 68,
+                    height: 68,
+                    borderRadius: '50%',
+                    border: 'none',
+                    background: '#e84c3d',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    boxShadow: '0 6px 20px rgba(232, 76, 61, 0.4)',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'scale(1.1)';
+                    e.currentTarget.style.boxShadow = '0 8px 24px rgba(232, 76, 61, 0.5)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'scale(1)';
+                    e.currentTarget.style.boxShadow = '0 6px 20px rgba(232, 76, 61, 0.4)';
+                  }}
+                >
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="white">
+                    <path d="M21 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 21 16.92z" style={{ transform: 'rotate(135deg)' }} />
                   </svg>
                 </button>
               </>

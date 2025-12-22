@@ -1,7 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useSession } from 'next-auth/react';
-import { getPusherClient } from '../lib/pusher';
+import { getSocketClient } from '../lib/socketClient';
 import { getFriendDisplayName } from '../lib/hooks';
+import { playIncomingCallRingtone, playOutgoingCallTone, stopRingtone } from '../lib/callRingtone';
 import CallTray from './CallTray';
 import CallWindowUI from './CallWindowUI';
 
@@ -16,7 +17,8 @@ type CallState = {
   startedAt?: number;
   muted?: boolean;
   endedAt?: number;
-  endedReason?: 'declined' | 'ended';
+  endedReason?: 'declined' | 'ended' | 'cancelled' | 'timeout';
+  connectedAt?: number;
 };
 
 type CallContextValue = {
@@ -51,8 +53,10 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
+  const ringtoneRef = useRef<any>(null);
+  const callTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const { data: session } = useSession();
-  const pusherClient = typeof window !== 'undefined' ? getPusherClient() : null;
+  const socket = typeof window !== 'undefined' ? getSocketClient() : null;
 
   const startCall = useCallback((opts: { type: CallType; targetId: string; targetName?: string; targetAvatar?: string }) => {
     const c: CallState = {
@@ -70,6 +74,72 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // persist initial call state
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ call: c, minimized: false, muted: false })); } catch (e) {}
     setMinimized(false);
+    
+    // Play outgoing call tone (dial tone/ringback)
+    try {
+      if (ringtoneRef.current) {
+        stopRingtone(ringtoneRef.current);
+      }
+      ringtoneRef.current = playOutgoingCallTone();
+    } catch (e) {
+      console.error('Failed to play outgoing tone:', e);
+    }
+    
+    // Set timeout to auto-cancel call after 40 seconds if not accepted
+    if (callTimeoutRef.current) clearTimeout(callTimeoutRef.current);
+    callTimeoutRef.current = setTimeout(() => {
+      // Check if call is still in 'calling' status (not accepted)
+      if (callRef.current && callRef.current.status === 'calling') {
+        const targetId = callRef.current.targetId;
+        
+        // Notify remote party about timeout
+        try {
+          if (targetId && typeof window !== 'undefined') {
+            fetch('/api/calls/end', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: targetId, from: (session as any)?.user?.id, reason: 'timeout' }) }).catch(()=>{});
+          }
+        } catch (e) {}
+        
+        // End call with timeout status
+        setCall(prev => {
+          if (prev && prev.status === 'calling') {
+            const endedAt = Date.now();
+            const next = { ...prev, status: 'ended' as const, endedAt, endedReason: 'timeout' as any };
+            callRef.current = next;
+            try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ call: next, minimized: false, muted })); } catch (e) {}
+            return next;
+          }
+          return prev;
+        });
+        
+        // Stop ringtone
+        try {
+          if (ringtoneRef.current) {
+            stopRingtone(ringtoneRef.current);
+            ringtoneRef.current = null;
+          }
+        } catch (e) {}
+        
+        // Stop audio
+        try {
+          if (audioStreamRef.current) {
+            audioStreamRef.current.getTracks().forEach(t => t.stop());
+            audioStreamRef.current = null;
+          }
+          if (pcRef.current) {
+            pcRef.current.close();
+            pcRef.current = null;
+          }
+        } catch (e) {}
+        
+        // Clear after 2 seconds
+        setTimeout(() => {
+          setCall(null);
+          setMuted(false);
+          setMinimized(false);
+          try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+        }, 2000);
+      }
+    }, 40000); // 40 seconds
 
     (async () => {
       try {
@@ -100,7 +170,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
 
-        // send offer to callee via server (Pusher relay)
+        // send offer to callee via server (Socket.IO relay)
   await fetch('/api/calls/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: opts.targetId, sdp: offer.sdp, from: (session?.user as any)?.id, fromName: (session?.user as any)?.link || (session?.user as any)?.login || (session?.user as any)?.name, fromAvatar: (session?.user as any)?.avatar }) });
       } catch (e) {
         console.error('startCall WebRTC init failed', e);
@@ -114,13 +184,37 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     callRef.current = next;
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ call: next, minimized: false, muted })); } catch (e) {}
     setMinimized(false);
+    
+    // Play incoming call ringtone
+    try {
+      if (ringtoneRef.current) {
+        stopRingtone(ringtoneRef.current);
+      }
+      ringtoneRef.current = playIncomingCallRingtone();
+    } catch (e) {
+      console.error('Failed to play ringtone:', e);
+    }
   }, []);
 
   const acceptCall = useCallback(async () => {
+    // Clear timeout if exists
+    if (callTimeoutRef.current) {
+      clearTimeout(callTimeoutRef.current);
+      callTimeoutRef.current = null;
+    }
+    
+    // Stop ringtone/tone when accepting
+    try {
+      if (ringtoneRef.current) {
+        stopRingtone(ringtoneRef.current);
+        ringtoneRef.current = null;
+      }
+    } catch (e) {}
+    
     // mark call as active and set startedAt to the moment of acceptance so both sides show consistent timer
     setCall(prev => {
       const now = Date.now();
-      const next = prev ? ({ ...prev, status: 'in-call', startedAt: now } as CallState) : prev;
+      const next = prev ? ({ ...prev, status: 'in-call', startedAt: now, connectedAt: now } as CallState) : prev;
       callRef.current = next as CallState | null;
       try { if (next) localStorage.setItem(STORAGE_KEY, JSON.stringify({ call: next, minimized: false, muted })); } catch (e) {}
       return next as CallState | null;
@@ -158,9 +252,23 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (e) {
       console.warn('acceptCall failed', e);
     }
-  }, [muted]);
+  }, [muted, session]);
 
   const endCall = useCallback(() => {
+    // Clear timeout if exists
+    if (callTimeoutRef.current) {
+      clearTimeout(callTimeoutRef.current);
+      callTimeoutRef.current = null;
+    }
+    
+    // Stop ringtone
+    try {
+      if (ringtoneRef.current) {
+        stopRingtone(ringtoneRef.current);
+        ringtoneRef.current = null;
+      }
+    } catch (e) {}
+    
     setCall(prev => {
       try {
         if (prev) {
@@ -252,7 +360,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => window.removeEventListener('resize', check);
   }, []);
 
-  // allow incoming-call global event to be dispatched from elsewhere (e.g., pusher handler)
+  // allow incoming-call global event to be dispatched from elsewhere (e.g., socket.io handler)
   useEffect(() => {
     const handler = (e: any) => {
       try {
@@ -300,13 +408,13 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => window.removeEventListener('storage', onStorage);
   }, []);
 
-  // Pusher-based signaling: subscribe to incoming webrtc events for this user
+  // Socket.IO-based signaling: subscribe to incoming webrtc events for this user
   useEffect(() => {
     try {
-      if (!pusherClient) return;
+      if (!socket) return;
       if (!session || !(session.user as any)?.id) return;
-      const channelName = `user-${(session.user as any).id}`;
-      const channel = pusherClient.subscribe(channelName);
+      
+      socket.emit('join-user', (session.user as any).id);
 
       const onOffer = async (data: any) => {
         try {
@@ -316,9 +424,21 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const callerAvatar = data.fromAvatar as string;
           // determine if we are already calling this user (simultaneous call)
           const alreadyCalling = !!(callRef.current && callRef.current.status === 'calling' && callRef.current.targetId === from);
-          const initialStatus: CallState['status'] = alreadyCalling ? 'ringing' : 'ringing';
+          const initialStatus: CallState['status'] = 'ringing';
           const displayName = getFriendDisplayName(from, callerName);
-          setCall({ id: String(Date.now()), type: 'phone', targetId: from, targetName: displayName, targetAvatar: callerAvatar, status: initialStatus, startedAt: Date.now() });
+          
+          const incomingCall: CallState = {
+            id: String(Date.now()) + Math.random().toString(36).slice(2, 8),
+            type: 'phone',
+            targetId: from,
+            targetName: displayName,
+            targetAvatar: callerAvatar,
+            status: initialStatus,
+            startedAt: Date.now()
+          };
+          
+          // Use receiveIncomingCall to properly handle UI and ringtone
+          receiveIncomingCall(incomingCall);
           callRef.current = { id: String(Date.now()), type: 'phone', targetId: from, targetName: displayName, targetAvatar: callerAvatar, status: initialStatus, startedAt: Date.now() };
 
           // prepare pc and set remote description so acceptCall can answer
@@ -353,7 +473,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
           // mark call as in-call (caller side) and set startedAt to the connect time so both sides show consistent timer
           const now = Date.now();
           setCall(prev => {
-            const next = prev ? { ...prev, status: 'in-call', startedAt: now } as CallState : prev;
+            const next = prev ? { ...prev, status: 'in-call', startedAt: now, connectedAt: now } as CallState : prev;
             callRef.current = next as CallState | null;
             try { if (next) localStorage.setItem(STORAGE_KEY, JSON.stringify({ call: next, minimized: minimized, muted })); } catch (e) {}
             return next;
@@ -370,20 +490,55 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } catch (e) {}
       };
 
-      channel.bind('webrtc-offer', onOffer);
-      channel.bind('webrtc-answer', onAnswer);
-      channel.bind('webrtc-candidate', onCandidate);
-      // remote ended/declined
       const onEnd = (data: any) => {
         try {
           const reason = data?.reason as string | undefined;
-          // set local call state to ended
-          setCall(prev => prev ? { ...prev, status: 'ended', endedAt: Date.now(), endedReason: reason === 'declined' ? 'declined' : 'ended' } : prev);
+          
+          setCall(prev => {
+            if (!prev) return prev;
+            
+            // Определяем реальный статус окончания:
+            // - timeout - не ответили за 40 секунд
+            // - declined - отклонили входящий звонок
+            // - ended - был активный разговор
+            // - cancelled - звонок был отменён (не был активен)
+            let finalReason: 'declined' | 'ended' | 'cancelled' | 'timeout' = 'cancelled';
+            if (reason === 'timeout') {
+              finalReason = 'timeout';
+            } else if (reason === 'declined') {
+              finalReason = 'declined';
+            } else if (prev.connectedAt) {
+              // Был активный разговор
+              finalReason = 'ended';
+            } else if (reason === 'ended') {
+              // Был попыток соединения, но соединение не установилось - отмена
+              finalReason = 'cancelled';
+            }
+            
+            return {
+              ...prev,
+              status: 'ended',
+              endedAt: Date.now(),
+              endedReason: finalReason
+            };
+          });
+          
           // dispatch global event so chat pages can show system message
           try {
-            const wasInCall = reason === 'ended';
-            window.dispatchEvent(new CustomEvent('call-ended', { detail: { targetId: data.from, targetName: undefined, startedAt: undefined, endedAt: Date.now(), wasInCall } }));
+            setCall(prev => {
+              const wasInCall = prev?.connectedAt ? true : false;
+              window.dispatchEvent(new CustomEvent('call-ended', { detail: { 
+                targetId: data.from, 
+                targetName: undefined, 
+                startedAt: undefined, 
+                endedAt: Date.now(), 
+                wasInCall,
+                reason: prev?.endedReason
+              }}));
+              return prev;
+            });
           } catch (e) {}
+          
           // cleanup local media/pc without notifying remote (we already received remote end)
           try {
             if (audioStreamRef.current) { audioStreamRef.current.getTracks().forEach(t=>t.stop()); audioStreamRef.current = null; }
@@ -393,24 +548,33 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
           } catch (e) {}
           try { if (localStreamRef.current) { localStreamRef.current.getTracks().forEach(t=>t.stop()); localStreamRef.current = null; } } catch (e) {}
           try { if (remoteStreamRef.current) { remoteStreamRef.current.getTracks().forEach(t=>t.stop()); remoteStreamRef.current = null; } } catch (e) {}
+          
           // allow ended-panel to show briefly, then clear
           try {
-            const delay = (reason === 'declined') ? 2200 : 1200;
-            setTimeout(() => { try { setCall(null); setMuted(false); setMinimized(false); } catch {} }, delay);
+            setCall(prev => {
+              const delay = (prev?.endedReason === 'declined' || prev?.endedReason === 'cancelled') ? 2200 : 1200;
+              setTimeout(() => { try { setCall(null); setMuted(false); setMinimized(false); } catch {} }, delay);
+              return prev;
+            });
           } catch (e) {}
-        } catch (e) {}
+        } catch (e) {
+          console.error('onEnd handler error', e);
+        }
       };
-      channel.bind('webrtc-end', onEnd);
+
+      socket.on('webrtc-offer', onOffer);
+      socket.on('webrtc-answer', onAnswer);
+      socket.on('webrtc-candidate', onCandidate);
+      socket.on('webrtc-end', onEnd);
 
       return () => {
-        try { channel.unbind('webrtc-offer', onOffer); } catch (e) {}
-        try { channel.unbind('webrtc-answer', onAnswer); } catch (e) {}
-        try { channel.unbind('webrtc-candidate', onCandidate); } catch (e) {}
-        try { channel.unbind('webrtc-end', onEnd); } catch (e) {}
-        try { pusherClient.unsubscribe(channelName); } catch (e) {}
+        try { socket.off('webrtc-offer', onOffer); } catch (e) {}
+        try { socket.off('webrtc-answer', onAnswer); } catch (e) {}
+        try { socket.off('webrtc-candidate', onCandidate); } catch (e) {}
+        try { socket.off('webrtc-end', onEnd); } catch (e) {}
       };
     } catch (e) {}
-  }, [pusherClient, session]);
+  }, [socket, session]);
 
 
   const value = useMemo((): CallContextValue => ({ call, startCall, receiveIncomingCall, acceptCall, endCall, minimizeCall, restoreCall, toggleMute, muted, minimized }), [call, startCall, receiveIncomingCall, acceptCall, endCall, minimizeCall, restoreCall, toggleMute, muted, minimized]);
