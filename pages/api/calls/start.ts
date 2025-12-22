@@ -8,6 +8,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!to || !sdp) return res.status(400).json({ error: 'Missing to or sdp' });
 
     const channel = `user-${to}`;
+    console.log(`[API calls/start] Sending webrtc-offer to channel: ${channel} from user: ${from}`);
     // Relay offer to target via Pusher
     const pusher = getSocket();
     if (pusher) {

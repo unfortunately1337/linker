@@ -171,6 +171,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await pc.setLocalDescription(offer);
 
         // send offer to callee via server (Socket.IO relay)
+        console.log('[CallProvider] Sending webrtc offer to user:', opts.targetId);
   await fetch('/api/calls/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: opts.targetId, sdp: offer.sdp, from: (session?.user as any)?.id, fromName: (session?.user as any)?.link || (session?.user as any)?.login || (session?.user as any)?.name, fromAvatar: (session?.user as any)?.avatar }) });
       } catch (e) {
         console.error('startCall WebRTC init failed', e);
@@ -179,7 +180,9 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [session]);
 
   const receiveIncomingCall = useCallback((c: CallState) => {
+    console.log('[CallProvider] receiveIncomingCall called with:', c);
     const next = { ...c, status: 'ringing' } as CallState;
+    console.log('[CallProvider] Setting call state to:', next);
     setCall(next);
     callRef.current = next;
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ call: next, minimized: false, muted })); } catch (e) {}
@@ -194,7 +197,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (e) {
       console.error('Failed to play ringtone:', e);
     }
-  }, []);
+  }, [muted]);
 
   const acceptCall = useCallback(async () => {
     // Clear timeout if exists
@@ -414,10 +417,18 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!socket) return;
       if (!session || !(session.user as any)?.id) return;
       
+      // Set userId for socketClient adapter to subscribe to proper channels
+      if (typeof window !== 'undefined') {
+        (window as any).__userId = (session.user as any).id;
+      }
+      
       socket.emit('join-user', (session.user as any).id);
+
+      console.log('[CallProvider] Setting up webrtc event listeners for user:', (session.user as any).id);
 
       const onOffer = async (data: any) => {
         try {
+          console.log('[CallProvider] Received webrtc-offer:', data);
           const from = data.from as string;
           const sdp = data.sdp as string;
           const callerName = data.fromName as string;
@@ -703,6 +714,12 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
       {/* hidden audio element for remote playback */}
       <audio ref={audioElRef} autoPlay style={{ display: 'none' }} />
       {/* Render call overlay and tray */}
+      {(() => {
+        if (call) {
+          console.log('[CallProvider] Rendering call UI - call:', call, 'minimized:', minimized);
+        }
+        return null;
+      })()}
       {call && !minimized && (
         <CallWindowUI
           targetName={call.targetName}

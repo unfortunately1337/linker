@@ -30,7 +30,12 @@ export function getPusherClient() {
   if (_pusherClient) return _pusherClient;
   const publicKey = process.env.NEXT_PUBLIC_PUSHER_KEY || '';
   const publicCluster = process.env.NEXT_PUBLIC_PUSHER_CLUSTER || '';
-  if (!publicKey) return null;
+  console.log('[Pusher] Initializing with key:', publicKey ? 'exists' : 'missing', 'cluster:', publicCluster);
+  if (!publicKey) {
+    console.error('[Pusher] No public key available');
+    return null;
+  }
   _pusherClient = new PusherClient(publicKey as string, { cluster: publicCluster as string });
+  console.log('[Pusher] Client initialized');
   return _pusherClient;
 }
