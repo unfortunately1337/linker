@@ -62,14 +62,6 @@ const ChatWithFriend: React.FC = () => {
   const router = useRouter();
   const { id } = router.query;
   const { data: session, status } = useSession();
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [hoveredMsgId, setHoveredMsgId] = useState<string | null>(null);
-  const [newMessage, setNewMessage] = useState('');
-  const [friend, setFriend] = useState<{ id: string, name: string, avatar?: string | null, role?: string } | null>(null);
-  const [chatId, setChatId] = useState<string | null>(null);
-  
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const speakingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Подключение к SSE
   useEffect(() => {
