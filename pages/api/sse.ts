@@ -11,29 +11,49 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
+    console.log('[SSE-ENDPOINT] GET /api/sse');
+    
     // Authenticate user
     const session = await getServerSession(req, res, authOptions);
     if (!session || !session.user?.id) {
+      console.warn('[SSE-ENDPOINT] ❌ Unauthorized: no session or user id');
       return res.status(401).json({ error: 'Unauthorized' });
     }
+    
+    console.log('[SSE-ENDPOINT] ✅ Authenticated:', session.user.id);
 
     const userId = session.user.id;
-    const { chatId } = req.query;
+    let chatId = req.query.chatId;
+    
+    // Ensure chatId is a string or undefined (not an array)
+    if (Array.isArray(chatId)) {
+      chatId = chatId[0];
+    }
+    
+    console.log('[SSE-ENDPOINT] Parameters: userId=' + userId + ', chatId=' + (chatId || 'none'));
 
     // Generate unique connection ID
     const connectionId = `${userId}-${uuidv4()}`;
+    console.log('[SSE-ENDPOINT] Generated connectionId:', connectionId);
 
     // Register SSE connection (this automatically subscribes to user and chat channels)
+    console.log('[SSE-ENDPOINT] Calling registerSSEConnection...');
     await registerSSEConnection(res, connectionId, userId, chatId as string | undefined);
 
-    console.log(`[SSE] New connection: ${connectionId} for user ${userId}${chatId ? ` chat ${chatId}` : ''}`);
+    console.log(`[SSE-ENDPOINT] ✅ Connection registered: ${connectionId} for user ${userId}${chatId ? ` chat ${chatId}` : ''}`);
 
     // Keep the response open indefinitely
     res.on('close', () => {
+      console.log('[SSE-ENDPOINT] Connection closed:', connectionId);
+      unregisterSSEConnection(connectionId);
+    });
+    
+    res.on('error', (err) => {
+      console.error('[SSE-ENDPOINT] Connection error:', connectionId, err);
       unregisterSSEConnection(connectionId);
     });
   } catch (err) {
-    console.error('[SSE] Connection error:', err);
-    return res.status(500).json({ error: 'Internal server error' });
+    console.error('[SSE-ENDPOINT] ❌ Connection error:', err);
+    return res.status(500).json({ error: 'Internal server error', details: String(err) });
   }
 }

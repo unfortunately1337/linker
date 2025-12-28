@@ -34,26 +34,49 @@ async function initRedis() {
   if (!redisSubscriber) {
     // Support both REDIS_URL and REDDIS_URL (legacy typo in .env)
     const redisUrl = process.env.REDIS_URL || process.env.REDDIS_URL || 'redis://localhost:6379';
+    console.log('[SSE-INIT] Using Redis URL:', redisUrl.includes('@') ? redisUrl.split('@')[1] : redisUrl);
+    
     redisSubscriber = createClient({ url: redisUrl });
     redisPublisher = createClient({ url: redisUrl });
     
-    await redisSubscriber.connect();
-    await redisPublisher.connect();
+    try {
+      await redisSubscriber.connect();
+      console.log('[SSE-INIT] ✅ Subscriber connected');
+    } catch (err) {
+      console.error('[SSE-INIT] ❌ Subscriber connection failed:', err);
+      throw err;
+    }
     
-    console.log('[SSE] Redis clients connected');
+    try {
+      await redisPublisher.connect();
+      console.log('[SSE-INIT] ✅ Publisher connected');
+    } catch (err) {
+      console.error('[SSE-INIT] ❌ Publisher connection failed:', err);
+      throw err;
+    }
+    
+    console.log('[SSE-INIT] ✅ Redis clients connected');
     
     // Subscribe to all channels using pattern subscription
-    await redisSubscriber.pSubscribe('*', (message: string, channel: string) => {
-      console.log(`[SSE] Received message from channel ${channel}`);
-      try {
-        const event = JSON.parse(message);
-        broadcastToChannel(channel, event).catch(err => {
-          console.error('[SSE] Error broadcasting to channel:', err);
-        });
-      } catch (err) {
-        console.error('[SSE] Error parsing Redis message:', err);
-      }
-    });
+    console.log('[SSE-INIT] Setting up pSubscribe to pattern "*"');
+    try {
+      await redisSubscriber.pSubscribe('*', (message: string, channel: string) => {
+        console.log(`[SSE-REDIS] Message on channel "${channel}" (${message.length} bytes)`);
+        try {
+          const event = JSON.parse(message);
+          console.log(`[SSE-REDIS] Parsed event type=${event.type}`);
+          broadcastToChannel(channel, event).catch(err => {
+            console.error('[SSE-REDIS] Error broadcasting to channel:', err);
+          });
+        } catch (err) {
+          console.error('[SSE-REDIS] Error parsing message:', err, 'message:', message.substring(0, 100));
+        }
+      });
+      console.log('[SSE-INIT] ✅ pSubscribe setup complete');
+    } catch (err) {
+      console.error('[SSE-INIT] ❌ pSubscribe failed:', err);
+      throw err;
+    }
   }
 }
 
@@ -182,13 +205,17 @@ export async function publishSSEEvent(
     };
     
     const message = JSON.stringify(event);
-    console.log(`[SSE] Publishing to ${channel}: type=${eventType}, data keys=${Object.keys(data).join(',')}`);
-    console.log(`[SSE] Message size: ${message.length} bytes`);
+    console.log(`[SSE-PUBLISH] 🔔 Publishing ${eventType} to ${channel}, message=${message.length} bytes`);
+    console.log(`[SSE-PUBLISH] Event data keys:`, Object.keys(data));
     
-    await redisPublisher.publish(channel, message);
-    console.log(`[SSE] Published successfully to ${channel}`);
+    const numSubscribers = await redisPublisher.publish(channel, message);
+    console.log(`[SSE-PUBLISH] ✅ Published to ${channel}, reached ${numSubscribers} subscriber(s)`);
+    
+    if (numSubscribers === 0) {
+      console.warn(`[SSE-PUBLISH] ⚠️ WARNING: No subscribers on channel ${channel}`);
+    }
   } catch (err) {
-    console.error('[SSE] Error publishing event:', err);
+    console.error('[SSE-PUBLISH] ❌ Error publishing event:', err);
     throw err;
   }
 }

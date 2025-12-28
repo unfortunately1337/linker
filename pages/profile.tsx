@@ -1,7 +1,7 @@
 import { getUser } from "../lib/session";
 import { forbiddenPasswords } from "../lib/forbidden-passwords";
 import { getFriendDisplayName } from "../lib/hooks";
-import { FaUserCircle, FaCog, FaShieldAlt, FaPalette, FaLaptop, FaMobileAlt, FaDesktop, FaSignOutAlt, FaQrcode } from "react-icons/fa";
+import { FaUserCircle, FaCog, FaShieldAlt, FaPalette, FaLaptop, FaMobileAlt, FaDesktop, FaSignOutAlt, FaQrcode, FaChevronLeft } from "react-icons/fa";
 import styles from "../components/SettingsProfile.module.css";
 import React, { useState, useEffect, useRef } from "react";
 import { motion } from 'framer-motion';
@@ -435,13 +435,18 @@ export default function ProfilePage() {
   
 
 
-  // Проверка авторизации через NextAuth (после всех хуков)
-  if (status === "loading" || !session || !session.user || !session.user.id || !user) {
+    if (status === "loading" || !session || !session.user || !session.user.id || !user) {
     return <div style={{color:'#bbb',textAlign:'center',marginTop:80,fontSize:22}}></div>;
   }
   if (!session || !session.user || !session.user.id || !user) {
     return <div style={{color:'#fff',textAlign:'center',marginTop:80,fontSize:22}}>Вы не авторизованы</div>;
   }
+
+  // На ПК показываем контент первой вкладки по умолчанию
+  const activeTab = !isMobile && !settingsTab ? 'customization' : settingsTab;
+  
+  // На ПК всегда показываем меню и контент
+  const showMenusidebar = !isMobile || !settingsTab;
 
   return (
     <motion.div
@@ -478,7 +483,7 @@ export default function ProfilePage() {
         {/* Settings button — top-right of the profile panel, borderless */}
         {session && session.user && user && session.user.id === user.id && (
           <button
-            onClick={() => { setSettingsTab('customization'); setShowSettings(true); }}
+            onClick={() => { setSettingsTab(null); setShowSettings(true); }}
             title="Настройки"
             aria-label="Open settings"
             style={{
@@ -824,70 +829,98 @@ export default function ProfilePage() {
               ✕
             </button>
 
-            {/* Left sidebar with profile info and navigation */}
-            <div className={styles.sidebar}>
-              {/* Profile header */}
-              <div className={styles.profileHeader}>
-                <div className={styles.profileHeaderContent}>
-                  <div className={styles.avatar}>
-                    <img
-                      src={avatar || "https://www.svgrepo.com/show/452030/avatar-default.svg"}
-                      alt="avatar"
-                    />
-                  </div>
-                  <div className={styles.profileInfo}>
+            {/* Menu Screen */}
+            {!settingsTab && (
+              <div className={styles.menuScreen}>
+                <div className={styles.menuScreenContent}>
+                  <div className={styles.profileSection}>
+                    <div className={styles.avatar}>
+                      <img
+                        src={avatar || "https://www.svgrepo.com/show/452030/avatar-default.svg"}
+                        alt="avatar"
+                      />
+                    </div>
                     <div className={styles.username}>
                       {user?.link ? `@${user.link}` : (user?.login || "Профиль")}
                     </div>
-                    {roleIconSrc && (
-                      <img
-                        src={roleIconSrc}
-                        alt="role"
-                        style={{ width: 14, height: 14, marginTop: 4 }}
-                      />
-                    )}
-                    <div className={styles.usernameSmall}>Настройки</div>
+                    <div className={styles.usernameSmall}>Настройки профиля</div>
+                  </div>
 
+                  <div className={styles.menuButtons}>
+                    <button
+                      className={styles.menuButton}
+                      onClick={() => setSettingsTab('customization')}
+                    >
+                      <div className={styles.menuButtonContent}>
+                        <div className={styles.menuButtonIcon} style={{ background: 'rgba(51, 153, 255, 0.2)' }}>
+                          <FaPalette size={18} color="#3399ff" />
+                        </div>
+                        <span>Оформление</span>
+                      </div>
+                    </button>
+                    <button
+                      className={styles.menuButton}
+                      onClick={() => setSettingsTab('security')}
+                    >
+                      <div className={styles.menuButtonContent}>
+                        <div className={styles.menuButtonIcon} style={{ background: 'rgba(100, 200, 100, 0.2)' }}>
+                          <FaShieldAlt size={18} color="#64c864" />
+                        </div>
+                        <span>Безопасность</span>
+                      </div>
+                    </button>
+                    <button
+                      className={styles.menuButton}
+                      onClick={() => setSettingsTab('privacy')}
+                    >
+                      <div className={styles.menuButtonContent}>
+                        <div className={styles.menuButtonIcon} style={{ background: 'rgba(150, 100, 200, 0.2)' }}>
+                          <FaUserCircle size={18} color="#9664c8" />
+                        </div>
+                        <span>Конфиденциальность</span>
+                      </div>
+                    </button>
                   </div>
                 </div>
               </div>
+            )}
 
-              {/* Menu */}
-              <div className={styles.menu}>
+            {/* Content Screens */}
+            {settingsTab && (
+              <div className={styles.contentScreen}>
                 <button
-                  className={`${styles.menuItem} ${settingsTab === 'customization' ? styles.active : ''}`}
-                  onClick={() => setSettingsTab('customization')}
+                  className={styles.backButtonTop}
+                  onClick={() => setSettingsTab(null)}
+                  title="Назад"
                 >
-                  <FaPalette size={16} />
-                  <span>Оформление</span>
+                  <FaChevronLeft size={20} />
                 </button>
-                <button
-                  className={`${styles.menuItem} ${settingsTab === 'security' ? styles.active : ''}`}
-                  onClick={() => setSettingsTab('security')}
-                >
-                  <FaShieldAlt size={16} />
-                  <span>Безопасность</span>
-                </button>
-                <button
-                  className={`${styles.menuItem} ${settingsTab === 'privacy' ? styles.active : ''}`}
-                  onClick={() => setSettingsTab('privacy')}
-                >
-                  <FaUserCircle size={16} />
-                  <span>Конфиденциальность</span>
-                </button>
-              </div>
-            </div>
 
-            {/* Right content area */}
-            <div className={styles.content}>
-              {/* Customization */}
-              {(settingsTab === 'customization' || isMobile) && (
-                <>
-                  <div className={styles.contentHeader}>
-                    <FaPalette className={styles.contentHeaderIcon} />
-                    <span className={styles.contentHeaderTitle}>Оформление профиля</span>
-                  </div>
-                  <div className={styles.contentBody}>
+                <div className={styles.contentHeader}>
+                  {settingsTab === 'customization' && (
+                    <>
+                      <FaPalette className={styles.contentHeaderIcon} />
+                      <span className={styles.contentHeaderTitle}>Оформление профиля</span>
+                    </>
+                  )}
+                  {settingsTab === 'security' && (
+                    <>
+                      <FaShieldAlt className={styles.contentHeaderIcon} />
+                      <span className={styles.contentHeaderTitle}>Безопасность</span>
+                    </>
+                  )}
+                  {settingsTab === 'privacy' && (
+                    <>
+                      <FaUserCircle className={styles.contentHeaderIcon} />
+                      <span className={styles.contentHeaderTitle}>Конфиденциальность</span>
+                    </>
+                  )}
+                </div>
+
+                <div className={styles.contentBody}>
+                  {/* Customization */}
+                  {settingsTab === 'customization' && (
+                    <>
                     {/* Change login section */}
                     <div className={styles.section}>
                       <span className={styles.sectionTitle}>Смена логина</span>
@@ -1123,20 +1156,13 @@ export default function ProfilePage() {
                         </button>
                       </div>
                     </div>
+                    </>
+                  )}
 
-
-                  </div>
-                </>
-              )}
-
-              {/* Security */}
-              {(settingsTab === 'security' || isMobile) && (
-                <>
-                  <div className={styles.contentHeader}>
-                    <FaShieldAlt className={styles.contentHeaderIcon} />
-                    <span className={styles.contentHeaderTitle}>Безопасность</span>
-                  </div>
-                  <div className={styles.contentBody}>
+                  {/* Security */}
+                  {settingsTab === 'security' && (
+                    <>
+                    <div className={styles.contentBody}>
                     {/* Password section */}
                     <div className={styles.section}>
                       <span className={styles.sectionTitle}>Пароль</span>
@@ -1299,18 +1325,14 @@ export default function ProfilePage() {
                         </div>
                       </div>
                     </div>
-                  </div>
-                </>
-              )}
+                    </div>
+                    </>
+                  )}
 
-              {/* Privacy/Status */}
-              {(settingsTab === 'privacy' || isMobile) && (
-                <>
-                  <div className={styles.contentHeader}>
-                    <FaUserCircle className={styles.contentHeaderIcon} />
-                    <span className={styles.contentHeaderTitle}>Конфиденциальность</span>
-                  </div>
-                  <div className={styles.contentBody}>
+                  {/* Privacy */}
+                  {settingsTab === 'privacy' && (
+                    <>
+                    <div className={styles.contentBody}>
                     <div className={styles.section}>
                       <span className={styles.sectionTitle}>Выберите статус</span>
                       <div className={styles.card}>
@@ -1389,10 +1411,12 @@ export default function ProfilePage() {
                         </div>
                       </div>
                     </div>
-                  </div>
-                </>
-              )}
-            </div>
+                    </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

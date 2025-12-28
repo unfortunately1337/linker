@@ -1,4 +1,4 @@
-/* Telegram-style settings modal for mobile-friendly experience */
+﻿/* Telegram-style settings modal - Menu Driven Navigation */
 
 .overlay {
   position: fixed;
@@ -8,52 +8,42 @@
   align-items: center;
   justify-content: center;
   padding: 16px;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(6px);
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(5px);
   animation: fadeIn 0.2s ease-out;
 }
 
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .modal {
   width: 100%;
-  max-width: 420px;
-  background: #1a1d21;
-  border-radius: 12px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+  max-width: 480px;
+  background: #0f1117;
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
   display: flex;
   flex-direction: column;
   color: #fff;
   position: relative;
-  max-height: 90vh;
+  max-height: 85vh;
   overflow: hidden;
-  animation: slideUp 0.3s cubic-bezier(0.2, 0.9, 0.2, 1);
+  animation: slideUp 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
 @keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateY(30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .close {
   position: absolute;
-  right: 12px;
-  top: 12px;
-  width: 28px;
-  height: 28px;
+  right: 14px;
+  top: 14px;
+  width: 32px;
+  height: 32px;
   background: transparent;
   border: none;
   color: #8a8e99;
@@ -72,34 +62,42 @@
   color: #fff;
 }
 
-/* Left sidebar - profile header */
-.sidebar {
-  background: rgba(0, 0, 0, 0.3);
-  border-bottom: none;
-  padding: 16px;
+/* Menu Screen */
+.menuScreen {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  height: 100%;
+  padding: 20px;
+  animation: slideInFromLeft 0.25s ease-out;
 }
 
-.profileHeader {
-  padding: 0;
-  border-bottom: none;
-  margin-bottom: 0;
+@keyframes slideInFromLeft {
+  from { opacity: 0; transform: translateX(-100%); }
+  to { opacity: 1; transform: translateX(0); }
 }
 
-.profileHeaderContent {
+.menuScreenContent {
   display: flex;
-  gap: 12px;
+  flex-direction: column;
+  gap: 24px;
+  height: 100%;
+}
+
+.profileSection {
+  display: flex;
+  flex-direction: column;
   align-items: center;
+  gap: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .avatar {
   width: 64px;
   height: 64px;
-  border-radius: 12px;
+  border-radius: 24px;
   overflow: hidden;
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(255, 255, 255, 0.05);
   flex-shrink: 0;
   border: none;
 }
@@ -111,186 +109,225 @@
   display: block;
 }
 
-.profileInfo {
-  flex: 1;
-}
-
 .username {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
   color: #fff;
-  word-break: break-word;
-  line-height: 1.2;
   margin-bottom: 4px;
+  text-align: center;
 }
 
 .usernameSmall {
-  font-size: 12px;
+  font-size: 13px;
   color: #8a8e99;
-  margin-top: 4px;
+  text-align: center;
 }
 
-.menu {
-  display: flex;
-  flex-direction: row;
-  gap: 6px;
-  width: 100%;
-}
-
-.mobileMenuBar {
-  display: none;
-}
-
-.menuItem {
-  flex: 1;
+.menuButtons {
   display: flex;
   flex-direction: column;
+  gap: 0;
+}
+
+.menuButton {
+  display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 10px 8px;
-  border-radius: 10px;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 12px;
   background: transparent;
   border: none;
-  color: #8a8e99;
-  font-weight: 600;
-  font-size: 11px;
-  cursor: pointer;
-  transition: all 0.18s ease;
-  text-align: center;
-  white-space: normal;
-}
-
-.menuItem:hover {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.10);
-  color: #d0d0d0;
-}
-
-.menuItem.active {
+  border-radius: 10px;
   color: #fff;
-  background: rgba(100, 100, 100, 0.25);
-  border-color: rgba(100, 100, 100, 0.4);
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
 }
 
-.menuItem svg {
-  width: 16px;
-  height: 16px;
+.menuButton:last-child {
+  border-bottom: none;
+}
+
+.menuButton:hover {
+  background: rgba(51, 153, 255, 0.15);
+  border-radius: 10px;
+}
+
+.menuButton:active {
+  opacity: 0.7;
+}
+
+.menuButtonContent {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.menuButtonIcon {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  font-size: 20px;
   flex-shrink: 0;
 }
 
-/* Right content area */
-.content {
-  padding: 0;
+.menuButtonArrow {
+  color: #8a8e99;
+  font-size: 18px;
+}
+
+.menuButton:hover {
+  background: rgba(51, 153, 255, 0.1);
+  border-color: rgba(51, 153, 255, 0.3);
+  transform: translateY(-2px);
+}
+
+.menuButton:active {
+  transform: translateY(0);
+}
+
+/* Content Screen */
+.contentScreen {
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  flex: 1;
   height: 100%;
+  width: 100%;
+  position: relative;
+  animation: slideInFromRight 0.25s ease-out;
+  overflow: hidden;
+}
+
+@keyframes slideInFromRight {
+  from { opacity: 0; transform: translateX(100%); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.backButtonTop {
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  width: 36px;
+  height: 36px;
+  background: transparent;
+  border: none;
+  color: #d0d0d0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  z-index: 100;
+  padding: 0;
+  font-weight: 600;
+}
+
+.backButtonTop:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
 }
 
 .contentHeader {
-  padding: 14px 16px;
-  border-bottom: none;
-  display: flex;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  display: none;
   align-items: center;
-  gap: 10px;
-  background: #0d0e10;
+  gap: 8px;
+  background: transparent;
   flex-shrink: 0;
+  box-sizing: border-box;
+  min-height: 48px;
 }
 
 .contentHeaderIcon {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #6a7a8a;
+  color: #8a8e99;
+  flex-shrink: 0;
 }
 
 .contentHeaderTitle {
   font-size: 14px;
   font-weight: 700;
   color: #fff;
-  letter-spacing: 0.2px;
+  letter-spacing: 0.1px;
 }
 
 .contentBody {
-  padding: 12px 12px;
+  padding: 12px;
   flex: 1;
-  overflow-y: auto;
+  overflow-y: scroll;
+  -webkit-overflow-scrolling: touch;
   min-height: 0;
+  box-sizing: border-box;
+  width: 100%;
 }
 
 .contentBody::-webkit-scrollbar {
   width: 4px;
 }
 
-.contentBody::-webkit-scrollbar-track {
-  background: transparent;
-}
-
 .contentBody::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.08);
   border-radius: 2px;
 }
 
-.contentBody::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.15);
-}
-
-/* Sections */
 .section {
   margin-bottom: 12px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-}
-
-.section:last-child {
-  margin-bottom: 0;
+  gap: 6px;
 }
 
 .sectionTitle {
   font-size: 11px;
   font-weight: 700;
-  color: transparent;
+  color: #8a8e99;
   text-transform: uppercase;
-  letter-spacing: 0.3px;
-  margin-left: 4px;
-  margin-top: 0;
-  display: none;
+  letter-spacing: 0.4px;
+  margin-left: 6px;
+  display: block;
+  margin-bottom: 2px;
 }
 
 .card {
-  background: rgba(0, 0, 0, 0.2);
-  border: none;
-  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
   padding: 12px;
   transition: all 0.2s ease;
 }
 
 .card:hover {
-  background: rgba(0, 0, 0, 0.25);
-  border-color: transparent;
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
 .cardLabel {
   font-size: 12px;
   font-weight: 600;
-  color: #999;
+  color: #d0d0d0;
   margin-bottom: 6px;
   display: block;
 }
 
 .cardInput {
   width: 100%;
-  background: rgba(0, 0, 0, 0.3);
-  border: none;
-  border-radius: 6px;
-  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 10px 12px;
   color: #e0e0e0;
-  font-size: 13px;
+  font-size: 14px;
   font-family: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
   transition: all 0.2s ease;
   box-sizing: border-box;
@@ -298,11 +335,12 @@
 
 .cardInput:focus {
   outline: none;
-  background: rgba(0, 0, 0, 0.35);
+  background: rgba(0, 0, 0, 0.3);
+  border-color: rgba(51, 153, 255, 0.4);
 }
 
 .cardInput::placeholder {
-  color: rgba(255, 255, 255, 0.25);
+  color: rgba(255, 255, 255, 0.3);
 }
 
 .inputGroup {
@@ -331,46 +369,41 @@
 }
 
 .btnPrimary {
-  background: #4a7ba7;
+  background: #3399ff;
   color: #fff;
 }
 
 .btnPrimary:hover:not(:disabled) {
-  background: #567ca0;
+  background: #2288ff;
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(74, 123, 167, 0.3);
+  box-shadow: 0 4px 12px rgba(51, 153, 255, 0.3);
 }
 
 .btnPrimary:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
 .btnSecondary {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.08);
   color: #d0d0d0;
-  border: none;
+  border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .btnSecondary:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.16);
 }
 
 .btnDanger {
-  background: rgba(255, 68, 68, 0.15);
+  background: rgba(255, 68, 68, 0.1);
   color: #ff6464;
-  border: none;
+  border: 1px solid rgba(255, 68, 68, 0.3);
 }
 
 .btnDanger:hover:not(:disabled) {
-  background: rgba(255, 68, 68, 0.25);
-  border-color: rgba(255, 68, 68, 0.5);
-}
-
-.btnSmall {
-  padding: 6px 10px;
-  font-size: 11px;
+  background: rgba(255, 68, 68, 0.15);
+  border-color: rgba(255, 68, 68, 0.4);
 }
 
 .btnGroup {
@@ -385,68 +418,69 @@
   min-width: calc(50% - 4px);
 }
 
-/* Status buttons (privacy section) */
 .statusButtons {
   display: flex;
   gap: 12px;
   margin-bottom: 12px;
-  justify-content: center;
+  justify-content: space-around;
 }
 
 .statusBtn {
-  width: 48px;
-  height: 48px;
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
-  background: transparent;
-  border: none;
+  background: rgba(255, 255, 255, 0.06);
+  border: 2px solid rgba(255, 255, 255, 0.08);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.2s ease;
+  color: #8a8e99;
+  font-size: 20px;
 }
 
 .statusBtn:hover {
   background: rgba(255, 255, 255, 0.08);
-  border-color: transparent;
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
 .statusBtn.active {
-  border-color: #0d6fd8;
-  background: #0d6fd8;
-  box-shadow: 0 0 16px rgba(13, 111, 216, 0.4);
+  border-color: #3399ff;
+  background: rgba(51, 153, 255, 0.15);
+  color: #3399ff;
+  box-shadow: 0 0 12px rgba(51, 153, 255, 0.2);
 }
 
 .statusDescription {
   text-align: center;
-  padding: 10px;
+  padding: 10px 8px;
   background: transparent;
   border-radius: 8px;
   font-size: 12px;
-  color: #a0a4a8;
+  color: #8a8e99;
   line-height: 1.5;
 }
 
-/* 2FA Section */
 .twoFACard {
-  background: rgba(13, 111, 216, 0.08);
-  border: none;
+  background: rgba(51, 153, 255, 0.08);
+  border: 1px solid rgba(51, 153, 255, 0.2);
   border-radius: 10px;
-  padding: 14px;
+  padding: 12px;
   display: flex;
-  gap: 12px;
+  gap: 10px;
 }
 
 .twoFACard.disabled {
-  background: rgba(0, 0, 0, 0.2);
-  border: none;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .twoFAIcon {
   width: 20px;
   height: 20px;
   flex-shrink: 0;
-  color: #0d6fd8;
+  color: #3399ff;
 }
 
 .twoFAContent {
@@ -462,33 +496,32 @@
 
 .twoFAStatus {
   font-size: 12px;
-  color: #0d6fd8;
+  color: #3399ff;
   margin-bottom: 6px;
   font-weight: 600;
 }
 
 .twoFAStatus.disabled {
-  color: #a0a0a0;
+  color: #8a8e99;
 }
 
 .twoFADescription {
   font-size: 12px;
-  color: #a0a4a8;
+  color: #8a8e99;
   line-height: 1.5;
   margin-bottom: 10px;
 }
 
-/* QR Code setup */
 .qrSetup {
-  margin-top: 12px;
+  margin-top: 10px;
   padding: 12px;
-  background: rgba(0, 0, 0, 0.2);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 10px;
-  border: none;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
 .qrContainer {
@@ -500,19 +533,14 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .qrContainer img {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  padding: 8px;
-}
-
-.qrInfo {
-  width: 100%;
-  text-align: center;
+  padding: 6px;
 }
 
 .qrTitle {
@@ -524,21 +552,21 @@
 
 .qrDescription {
   font-size: 12px;
-  color: #a0a4a8;
+  color: #8a8e99;
   line-height: 1.5;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 .secretContainer {
   width: 100%;
   background: rgba(0, 0, 0, 0.2);
-  border: none;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
   padding: 8px 10px;
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 .secret {
@@ -554,15 +582,15 @@
   display: flex;
   gap: 4px;
   justify-content: center;
-  margin: 10px 0;
+  margin: 8px 0;
 }
 
 .codeInput {
   width: 30px;
   height: 40px;
   border-radius: 8px;
-  border: none;
-  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.2);
   color: #fff;
   font-size: 18px;
   font-weight: 700;
@@ -572,166 +600,62 @@
 
 .codeInput:focus {
   outline: none;
-  border-color: #0d6fd8;
-  background: rgba(13, 111, 216, 0.1);
+  border-color: rgba(51, 153, 255, 0.5);
+  background: rgba(51, 153, 255, 0.08);
 }
 
-/* Scrollbar styling */
-.contentBody::-webkit-scrollbar {
-  width: 4px;
-}
-
-.contentBody::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.contentBody::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 2px;
-}
-
-.contentBody::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.15);
-}
-
-/* Responsive design - mobile */
 @media (max-width: 600px) {
-  .overlay {
-    align-items: flex-end;
-    padding: 0;
-  }
-
   .modal {
-    width: 100%;
     max-width: 100%;
-    display: flex;
-    flex-direction: column;
-    max-height: 90vh;
     border-radius: 16px 16px 0 0;
+    max-height: 92vh;
   }
 
-  .sidebar {
-    display: flex;
-    flex-direction: column;
+  .menuScreen {
+    padding: 16px 12px;
+  }
+
+  .profileSection {
+    gap: 12px;
+    padding-bottom: 10px;
+  }
+
+  .avatar {
+    width: 56px;
+    height: 56px;
+  }
+
+  .menuButtons {
     gap: 0;
-    border-bottom: none;
-    padding: 12px;
   }
 
-  .profileHeader {
-    padding: 0;
-    border-bottom: none;
-    margin-bottom: 12px;
+  .menuButton {
+    padding: 14px 0;
+    font-size: 15px;
   }
 
-  .menu {
-    display: flex !important;
-    flex-direction: row;
-    gap: 8px;
-    width: 100%;
-  }
-
-  .menuItem {
-    flex: 1;
-    padding: 8px 10px;
-    font-size: 11px;
-    border: none;
-  }
-
-  .menuItem.active {
-    background: #0d6fd8;
-    border-color: #0d6fd8;
-    color: #fff;
-  }
-
-  .close {
-    position: fixed;
-    top: 12px;
-    right: 12px;
-  }
-
-  .content {
-    flex: 1;
-    overflow-y: auto;
-    height: auto;
-    max-height: calc(90vh - 140px);
-  }
-
-  .contentHeader {
-    padding: 12px 14px;
-    border-bottom: none;
+  .backButtonTop {
+    left: 10px;
+    top: 10px;
   }
 
   .contentBody {
-    padding: 12px;
-  }
-
-  .section {
-    margin-bottom: 10px;
-  }
-
-  .sectionTitle {
-    font-size: 10px;
-  }
-
-  .card {
     padding: 10px;
-  }
-
-  .cardLabel {
-    font-size: 11px;
   }
 
   .cardInput {
     padding: 8px 10px;
-    font-size: 12px;
+    font-size: 13px;
   }
 
   .btn {
     padding: 8px 12px;
-    font-size: 11px;
-  }
-
-  .btnGroup {
-    gap: 6px;
-  }
-
-  .btnGroup > button {
-    flex: 1;
-    min-width: auto;
-  }
-
-  .statusBtn {
-    width: 40px;
-    height: 40px;
-  }
-
-  .statusDescription {
-    font-size: 11px;
-    padding: 8px;
-  }
-
-  .twoFACard {
-    padding: 10px;
-  }
-
-  .twoFAIcon {
-    width: 18px;
-    height: 18px;
-  }
-
-  .twoFATitle {
     font-size: 12px;
   }
 
-  .twoFADescription {
-    font-size: 11px;
-  }
-
-  .qrSetup {
-    padding: 10px;
-    gap: 10px;
-    margin-top: 10px;
+  .statusBtn {
+    width: 48px;
+    height: 48px;
   }
 
   .qrContainer {
@@ -739,57 +663,10 @@
     height: 120px;
   }
 
-  .qrTitle {
-    font-size: 12px;
-  }
-
-  .qrDescription {
-    font-size: 11px;
-  }
-
-  .secretContainer {
-    padding: 6px 10px;
-  }
-
-  .secret {
-    font-size: 10px;
-  }
-
-  .codeInputContainer {
-    gap: 4px;
-    margin: 8px 0;
-  }
-
   .codeInput {
     width: 30px;
     height: 36px;
     font-size: 16px;
-  }
-
-  .inputGroup {
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  .inputGroup .cardInput {
-    width: 100%;
-  }
-
-  .avatar {
-    width: 48px;
-    height: 48px;
-  }
-
-  .username {
-    font-size: 13px;
-  }
-
-  .usernameSmall {
-    font-size: 11px;
-  }
-
-  .profileHeaderContent {
-    gap: 10px;
   }
 }
 
@@ -798,118 +675,28 @@
     max-height: 95vh;
   }
 
-  .content {
-    max-height: calc(95vh - 140px);
+  .menuScreen {
+    padding: 14px 10px;
   }
 
-  .close {
-    width: 24px;
-    height: 24px;
-    font-size: 16px;
-  }
-
-  .sidebar {
-    padding: 10px;
-  }
-
-  .menu {
-    gap: 6px;
-  }
-
-  .menuItem {
-    padding: 7px 8px;
-    font-size: 10px;
-    gap: 3px;
-  }
-
-  .menuItem svg {
-    width: 14px;
-    height: 14px;
-  }
-
-  .contentHeader {
-    padding: 10px 12px;
-  }
-
-  .contentHeaderIcon {
-    width: 16px;
-    height: 16px;
-  }
-
-  .contentHeaderTitle {
-    font-size: 12px;
+  .menuButton {
+    padding: 12px 0;
+    font-size: 14px;
   }
 
   .contentBody {
-    padding: 10px;
-  }
-
-  .section {
-    margin-bottom: 8px;
-  }
-
-  .sectionTitle {
-    font-size: 9px;
-    margin-left: 2px;
-  }
-
-  .card {
     padding: 8px;
   }
 
-  .cardLabel {
-    font-size: 10px;
-    margin-bottom: 4px;
-  }
-
-  .cardInput {
-    padding: 6px 8px;
-    font-size: 11px;
-  }
-
-  .btn {
-    padding: 7px 10px;
-    font-size: 10px;
-  }
-
-  .avatar {
-    width: 44px;
-    height: 44px;
-  }
-
-  .username {
-    font-size: 12px;
-  }
-
-  .usernameSmall {
-    font-size: 10px;
-  }
-
-  .statusBtn {
-    width: 36px;
-    height: 36px;
-  }
-
   .qrContainer {
-    width: 100px;
-    height: 100px;
+    width: 110px;
+    height: 110px;
   }
 
   .codeInput {
     width: 28px;
-    height: 32px;
+    height: 34px;
     font-size: 14px;
   }
-
-  .twoFATitle {
-    font-size: 11px;
-  }
-
-  .secretContainer {
-    padding: 4px 8px;
-  }
-
-  .secret {
-    font-size: 9px;
-  }
 }
+

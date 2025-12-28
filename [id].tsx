@@ -64,12 +64,19 @@ const ChatWithFriend: React.FC = () => {
 
   // Подключение к SSE
   useEffect(() => {
-    if (!chatId || !session) return;
+    if (!chatId || !session) {
+      console.log('[CHAT] useEffect: skipping, chatId=' + chatId + ', session=' + !!session);
+      return;
+    }
+    
     const { getSocketClient } = require('@/lib/socketClient');
     const socketClient = getSocketClient();
-    if (!socketClient) return;
-
-    let typingTimeout: NodeJS.Timeout | null = null;
+    if (!socketClient) {
+      console.error('[CHAT] ❌ socketClient is null');
+      return;
+    }
+    
+    console.log('[CHAT] 🔌 Setting up SSE listeners for chatId=' + chatId);
     let speakingTimeout: NodeJS.Timeout | null = null;
 
     const onTyping = (data: { userId: string, name: string }) => {
@@ -89,16 +96,16 @@ const ChatWithFriend: React.FC = () => {
     };
 
     const onNewMessage = (data: any) => {
-      console.log('[Chat] Received new-message event:', data);
+      console.log('[CHAT] 📨 Received new-message event:', data);
       if (data && data.id) {
         // Add message to chat if it's not already there (avoid duplicates with locally sent messages)
         setMessages((prevMessages) => {
           const exists = prevMessages.some(m => m.id === data.id);
           if (exists) {
-            console.log('[Chat] Message already exists, skipping');
+            console.log('[CHAT] ℹ️ Message already exists, skipping:', data.id);
             return prevMessages;
           }
-          console.log('[Chat] Adding new message to chat:', data.id);
+          console.log('[CHAT] ✅ Adding new message:', data.id);
           return [...prevMessages, {
             id: data.id,
             sender: data.senderId,
@@ -109,6 +116,8 @@ const ChatWithFriend: React.FC = () => {
             status: data.status
           }];
         });
+      } else {
+        console.warn('[CHAT] ⚠️ Invalid message data:', data);
       }
     };
 
@@ -167,7 +176,13 @@ const ChatWithFriend: React.FC = () => {
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim() || !chatId || !session) return;
+    if (!newMessage.trim() || !chatId || !session) {
+      console.log('[CHAT] Send skipped: message=' + !!newMessage.trim() + ', chatId=' + !!chatId + ', session=' + !!session);
+      return;
+    }
+    
+    console.log('[CHAT] 📤 Sending message:', newMessage.trim().substring(0, 50));
+    
     fetch('/api/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -177,15 +192,19 @@ const ChatWithFriend: React.FC = () => {
       .then(res => res.json())
       .then(data => {
         if (data.message) {
+          console.log('[CHAT] ✅ Message sent:', data.message.id);
           setMessages([...messages, {
             id: data.message.id,
             sender: data.message.senderId,
             text: data.message.text,
             createdAt: data.message.createdAt
           }]);
+        } else {
+          console.error('[CHAT] ❌ No message in response:', data);
         }
         setNewMessage('');
-      });
+      })
+      .catch(err => console.error('[CHAT] ❌ Send error:', err));
   };
 
   if (status === "loading") return <div style={{ color: '#bbb', marginTop: 80 }}>Загрузка...</div>;

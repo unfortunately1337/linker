@@ -52,7 +52,7 @@ function createSSEAdapter(): SocketClientAdapter {
       const userId = (typeof window !== 'undefined') ? (window as any).__userId : null;
       const chatId = (typeof window !== 'undefined') ? (window as any).__chatId : null;
       
-      console.log(`[SSE.on] Event: ${event}, userId:`, userId, 'chatId:', chatId, 'sseInitialized:', sseInitialized);
+      console.log(`[SOCKET-ADAPTER] on(${event}): userId=${userId}, chatId=${chatId}, sseInitialized=${sseInitialized}`);
       
       // Store callback for this event
       if (!socketClientAdapter!._bindings.has(event)) {
@@ -62,18 +62,23 @@ function createSSEAdapter(): SocketClientAdapter {
       
       // Get SSE client and register the listener (this works even if not connected yet)
       const sseClient = getSSEClient();
+      console.log(`[SOCKET-ADAPTER] Registering callback on SSEClient for ${event}`);
       sseClient.on(event, callback);
       
-      console.log(`[SSE.on] Registered listener for event: ${event}`);
+      console.log(`[SOCKET-ADAPTER] ✅ Listener registered: ${event}`);
       
       // Initialize SSE connection if not already done (do this AFTER registering listener)
       if (!sseInitialized && userId) {
-        console.log('[SSE.on] Initializing SSE with userId:', userId, 'chatId:', chatId);
+        console.log('[SOCKET-ADAPTER] 🔌 Initializing SSE with userId=' + userId + ', chatId=' + (chatId || 'none'));
         sseInitialized = true;
         initializeSSE(userId, chatId).catch((err) => {
-          console.error('[SSE] Failed to initialize:', err);
+          console.error('[SOCKET-ADAPTER] ❌ Failed to initialize SSE:', err);
           sseInitialized = false;
         });
+      } else if (sseInitialized) {
+        console.log('[SOCKET-ADAPTER] SSE already initialized');
+      } else {
+        console.warn('[SOCKET-ADAPTER] ⚠️ userId is null, cannot initialize SSE');
       }
     },
     

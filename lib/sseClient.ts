@@ -21,6 +21,7 @@ class SSEClient {
   private maxReconnectAttempts = 5;
   private reconnectDelay = 1000;
   private messageQueue: Array<{ event: string; data: any }> = [];
+  private pendingListeners: Array<{ eventType: string; callback: RealtimeEventListener }> = [];
 
   constructor() {}
 
@@ -41,26 +42,42 @@ class SSEClient {
       if (chatId) params.append('chatId', chatId);
 
       const url = `/api/sse?${params.toString()}`;
+      console.log(`[SSE-CLIENT] 🔌 Connecting to ${url}`);
 
       try {
         this.eventSource = new EventSource(url);
 
         // Handle connection
         this.eventSource.addEventListener('connected', (event: any) => {
-          console.log('[SSE] Connected:', event.data);
-          this.reconnectAttempts = 0;
-          resolve();
+          try {
+            const data = JSON.parse(event.data);
+            console.log('[SSE-CLIENT] ✅ Connected:', data);
+            this.reconnectAttempts = 0;
+            
+            // Process any pending listeners that were queued before connection
+            if (this.pendingListeners.length > 0) {
+              console.log(`[SSE-CLIENT] 📋 Processing ${this.pendingListeners.length} pending listeners`);
+              this.pendingListeners.forEach(({ eventType, callback }) => {
+                this.on(eventType, callback);
+              });
+              this.pendingListeners = [];
+            }
+            
+            resolve();
+          } catch (err) {
+            console.error('[SSE-CLIENT] Error parsing connected event:', err);
+            resolve();
+          }
         });
 
         // Handle ping to keep connection alive
         this.eventSource.addEventListener('ping', () => {
-          // Silent ping - just keep connection alive
-          console.log('[SSE] Ping received');
+          console.log('[SSE-CLIENT] 💓 Ping received');
         });
 
         // Handle error
         this.eventSource.addEventListener('error', (e: any) => {
-          console.error('[SSE] Error:', e);
+          console.error('[SSE-CLIENT] ❌ EventSource error:', e);
           this.handleDisconnect();
         });
 
@@ -70,10 +87,10 @@ class SSEClient {
             try {
               const msgEvent = event as any;
               const data = msgEvent.data ? JSON.parse(msgEvent.data) : null;
-              console.log(`[SSE] Received event: ${eventName}, data:`, data);
+              console.log(`[SSE-CLIENT] 📨 Event received: ${eventName}`, data);
               this.handleEvent(eventName, data);
             } catch (err) {
-              console.error(`[SSE] Failed to parse ${eventName} event:`, err);
+              console.error(`[SSE-CLIENT] ❌ Failed to parse ${eventName} event:`, err);
             }
           };
         };
@@ -98,6 +115,7 @@ class SSEClient {
         ];
 
         eventTypes.forEach(eventType => {
+          console.log(`[SSE-CLIENT] 👂 Adding listener for: ${eventType}`);
           this.eventSource?.addEventListener(eventType, eventHandler(eventType));
         });
 
@@ -130,19 +148,20 @@ class SSEClient {
    * Handle disconnect and attempt reconnect
    */
   private handleDisconnect(): void {
+    console.warn(`[SSE-CLIENT] ⚠️ Disconnected (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
       this.reconnectAttempts++;
       const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
-      console.log(`[SSE] Attempting reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts}) in ${delay}ms`);
+      console.log(`[SSE-CLIENT] 🔄 Attempting reconnect in ${delay}ms...`);
       setTimeout(() => {
         if (this.userId) {
           this.connect(this.userId, this.chatId || undefined).catch((err) => {
-            console.error('[SSE] Reconnect failed:', err);
+            console.error('[SSE-CLIENT] ❌ Reconnect failed:', err);
           });
         }
       }, delay);
     } else {
-      console.error('[SSE] Max reconnect attempts reached');
+      console.error('[SSE-CLIENT] ❌ Max reconnect attempts reached');
     }
   }
 
@@ -191,13 +210,23 @@ class SSEClient {
    * Subscribe to an event
    */
   on(eventType: string, callback: RealtimeEventListener): void {
+    // If userId or chatId not set yet, queue the listener for later
+    if (!this.userId) {
+      console.log(`[SSE-CLIENT] 📋 Queuing listener for ${eventType} (not connected yet)`);
+      this.pendingListeners.push({ eventType, callback });
+      return;
+    }
+
     // Register callback for this event type on both potential channels
     const userChannel = this.userId ? `user-${this.userId}` : null;
     const chatChannel = this.chatId ? `chat-${this.chatId}` : null;
 
+    console.log(`[SSE-CLIENT] 👂 on(${eventType}) - user channel=${userChannel}, chat channel=${chatChannel}`);
+
     [userChannel, chatChannel].forEach((channel) => {
       if (channel) {
         if (!this.channels.has(channel)) {
+          console.log(`[SSE-CLIENT] Creating channel info for ${channel}`);
           this.channels.set(channel, {
             listeners: new Map(),
             connected: true,
@@ -209,10 +238,9 @@ class SSEClient {
           channelInfo.listeners.set(eventType, new Set());
         }
         channelInfo.listeners.get(eventType)!.add(callback);
+        console.log(`[SSE-CLIENT] ✅ Listener added for ${eventType} on ${channel}`);
       }
     });
-
-    console.log(`[SSE] Registered listener for event: ${eventType}`);
   }
 
   /**
