@@ -61,6 +61,11 @@ const ChatWithFriend: React.FC = () => {
   const [newMessage, setNewMessage] = useState('');
   const [friend, setFriend] = useState<{ id: string, name: string, avatar?: string | null, role?: string } | null>(null);
   const [chatId, setChatId] = useState<string | null>(null);
+  const [isTyping, setIsTyping] = useState<string | null>(null);
+  const [isSpeaking, setIsSpeaking] = useState<string | null>(null);
+  
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const speakingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Подключение к SSE
   useEffect(() => {
@@ -82,16 +87,16 @@ const ChatWithFriend: React.FC = () => {
     const onTyping = (data: { userId: string, name: string }) => {
       if (data.userId !== (session.user as any).id) {
         setIsTyping(data.name || 'Друг');
-        if (typingTimeout) clearTimeout(typingTimeout);
-        typingTimeout = setTimeout(() => setIsTyping(null), 2000);
+        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = setTimeout(() => setIsTyping(null), 2000);
       }
     };
 
     const onSpeaking = (data: { userId: string, name: string }) => {
       if (data.userId !== (session.user as any).id) {
         setIsSpeaking(data.name || 'Друг');
-        if (speakingTimeout) clearTimeout(speakingTimeout);
-        speakingTimeout = setTimeout(() => setIsSpeaking(null), 2000);
+        if (speakingTimeoutRef.current) clearTimeout(speakingTimeoutRef.current);
+        speakingTimeoutRef.current = setTimeout(() => setIsSpeaking(null), 2000);
       }
     };
 
@@ -129,8 +134,8 @@ const ChatWithFriend: React.FC = () => {
       socketClient.off('new-message', onNewMessage);
       socketClient.off('typing-indicator', onTyping);
       socketClient.off('speaking', onSpeaking);
-      if (typingTimeout) clearTimeout(typingTimeout);
-      if (speakingTimeout) clearTimeout(speakingTimeout);
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      if (speakingTimeoutRef.current) clearTimeout(speakingTimeoutRef.current);
     };
   }, [chatId, session]);
 
