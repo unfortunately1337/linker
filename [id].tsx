@@ -15,8 +15,14 @@ interface Message {
 const ChatWithFriend: React.FC = () => {
   const [isTyping, setIsTyping] = useState<string | null>(null);
   const [isSpeaking, setIsSpeaking] = useState<string | null>(null);
-
-  // Компонент анимации "печатает..."
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [hoveredMsgId, setHoveredMsgId] = useState<string | null>(null);
+  const [newMessage, setNewMessage] = useState('');
+  const [friend, setFriend] = useState<{ id: string, name: string, avatar?: string | null, role?: string } | null>(null);
+  const [chatId, setChatId] = useState<string | null>(null);
+  
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const speakingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const TypingIndicator = () => (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
       <span style={{ color: '#bbb', fontSize: 14 }}>{isTyping} печатает</span>
@@ -61,8 +67,6 @@ const ChatWithFriend: React.FC = () => {
   const [newMessage, setNewMessage] = useState('');
   const [friend, setFriend] = useState<{ id: string, name: string, avatar?: string | null, role?: string } | null>(null);
   const [chatId, setChatId] = useState<string | null>(null);
-  const [isTyping, setIsTyping] = useState<string | null>(null);
-  const [isSpeaking, setIsSpeaking] = useState<string | null>(null);
   
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const speakingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
