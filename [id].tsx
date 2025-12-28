@@ -88,10 +88,36 @@ const ChatWithFriend: React.FC = () => {
       }
     };
 
+    const onNewMessage = (data: any) => {
+      console.log('[Chat] Received new-message event:', data);
+      if (data && data.id) {
+        // Add message to chat if it's not already there (avoid duplicates with locally sent messages)
+        setMessages((prevMessages) => {
+          const exists = prevMessages.some(m => m.id === data.id);
+          if (exists) {
+            console.log('[Chat] Message already exists, skipping');
+            return prevMessages;
+          }
+          console.log('[Chat] Adding new message to chat:', data.id);
+          return [...prevMessages, {
+            id: data.id,
+            sender: data.senderId,
+            text: data.text || '[Новое сообщение]', // Fallback text if not provided by SSE
+            createdAt: data.createdAt,
+            audioUrl: data.audioUrl,
+            videoUrl: data.videoUrl,
+            status: data.status
+          }];
+        });
+      }
+    };
+
+    socketClient.on('new-message', onNewMessage);
     socketClient.on('typing-indicator', onTyping);
     socketClient.on('speaking', onSpeaking);
 
     return () => {
+      socketClient.off('new-message', onNewMessage);
       socketClient.off('typing-indicator', onTyping);
       socketClient.off('speaking', onSpeaking);
       if (typingTimeout) clearTimeout(typingTimeout);

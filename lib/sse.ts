@@ -40,9 +40,19 @@ async function initRedis() {
     await redisSubscriber.connect();
     await redisPublisher.connect();
     
-    // Set up subscribers
-    redisSubscriber.subscribe('*', (message: any, channel: string) => {
-      broadcastToChannel(channel, JSON.parse(message));
+    console.log('[SSE] Redis clients connected');
+    
+    // Subscribe to all channels using pattern subscription
+    await redisSubscriber.pSubscribe('*', (message: string, channel: string) => {
+      console.log(`[SSE] Received message from channel ${channel}`);
+      try {
+        const event = JSON.parse(message);
+        broadcastToChannel(channel, event).catch(err => {
+          console.error('[SSE] Error broadcasting to channel:', err);
+        });
+      } catch (err) {
+        console.error('[SSE] Error parsing Redis message:', err);
+      }
     });
   }
 }
@@ -83,6 +93,9 @@ export async function registerSSEConnection(
   }
   
   activeConnections.set(connectionId, connection);
+  
+  console.log(`[SSE] Registered connection ${connectionId} for user=${userId || 'anonymous'}, chatId=${chatId || 'none'}, channels=[${Array.from(connection.channels).join(', ')}]`);
+  console.log(`[SSE] Active connections: ${activeConnections.size}`);
   
   // Send initial connection message
   sendSSEMessage(res, {
@@ -140,11 +153,18 @@ export function sendSSEMessage(res: NextApiResponse, event: SSEEvent): boolean {
 
 // Broadcast event to a specific channel
 async function broadcastToChannel(channel: string, event: SSEEvent): Promise<void> {
-  for (const [, connection] of activeConnections.entries()) {
+  console.log(`[SSE] Broadcasting to channel ${channel}, type=${event.type}, connections=${activeConnections.size}`);
+  
+  let broadcastCount = 0;
+  for (const [connectionId, connection] of activeConnections.entries()) {
     if (connection.channels.has(channel)) {
-      sendSSEMessage(connection.res, event);
+      broadcastCount++;
+      const success = sendSSEMessage(connection.res, event);
+      console.log(`[SSE] Sent to connection ${connectionId}: ${success ? 'OK' : 'FAILED'}`);
     }
   }
+  
+  console.log(`[SSE] Broadcast complete: sent to ${broadcastCount} connections out of ${activeConnections.size}`);
 }
 
 // Publish event to Redis (will be distributed to all servers)
@@ -161,10 +181,15 @@ export async function publishSSEEvent(
       timestamp: Date.now(),
     };
     
-    await redisPublisher.publish(channel, JSON.stringify(event));
-    console.log(`[SSE] Published to ${channel}:`, eventType);
+    const message = JSON.stringify(event);
+    console.log(`[SSE] Publishing to ${channel}: type=${eventType}, data keys=${Object.keys(data).join(',')}`);
+    console.log(`[SSE] Message size: ${message.length} bytes`);
+    
+    await redisPublisher.publish(channel, message);
+    console.log(`[SSE] Published successfully to ${channel}`);
   } catch (err) {
     console.error('[SSE] Error publishing event:', err);
+    throw err;
   }
 }
 

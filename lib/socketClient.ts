@@ -54,7 +54,19 @@ function createSSEAdapter(): SocketClientAdapter {
       
       console.log(`[SSE.on] Event: ${event}, userId:`, userId, 'chatId:', chatId, 'sseInitialized:', sseInitialized);
       
-      // Initialize SSE connection if not already done
+      // Store callback for this event
+      if (!socketClientAdapter!._bindings.has(event)) {
+        socketClientAdapter!._bindings.set(event, []);
+      }
+      socketClientAdapter!._bindings.get(event)!.push(callback);
+      
+      // Get SSE client and register the listener (this works even if not connected yet)
+      const sseClient = getSSEClient();
+      sseClient.on(event, callback);
+      
+      console.log(`[SSE.on] Registered listener for event: ${event}`);
+      
+      // Initialize SSE connection if not already done (do this AFTER registering listener)
       if (!sseInitialized && userId) {
         console.log('[SSE.on] Initializing SSE with userId:', userId, 'chatId:', chatId);
         sseInitialized = true;
@@ -63,18 +75,6 @@ function createSSEAdapter(): SocketClientAdapter {
           sseInitialized = false;
         });
       }
-      
-      // Store callback for this event
-      if (!socketClientAdapter!._bindings.has(event)) {
-        socketClientAdapter!._bindings.set(event, []);
-      }
-      socketClientAdapter!._bindings.get(event)!.push(callback);
-      
-      // Get SSE client and register the listener
-      const sseClient = getSSEClient();
-      sseClient.on(event, callback);
-      
-      console.log(`[SSE.on] Registered listener for event: ${event}`);
     },
     
     off: (event: string, callback: (data: any) => void) => {

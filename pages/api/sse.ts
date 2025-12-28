@@ -23,16 +23,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Generate unique connection ID
     const connectionId = `${userId}-${uuidv4()}`;
 
-    // Register SSE connection
+    // Register SSE connection (this automatically subscribes to user and chat channels)
     await registerSSEConnection(res, connectionId, userId, chatId as string | undefined);
-
-    // Always subscribe to user channel for personal events (friend requests, status changes, calls)
-    await subscribeConnectionToChannel(connectionId, `user-${userId}`);
-
-    // If chatId is provided, subscribe to the chat channel
-    if (chatId && typeof chatId === 'string') {
-      await subscribeConnectionToChannel(connectionId, `chat-${chatId}`);
-    }
 
     console.log(`[SSE] New connection: ${connectionId} for user ${userId}${chatId ? ` chat ${chatId}` : ''}`);
 
