@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../auth/[...nextauth]';
-import { getSocket } from '../../../lib/socket';
+import { publishChatEvent } from '../../../lib/realtime';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const session = await getServerSession(req, res, authOptions);
@@ -14,14 +14,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const { chatId } = req.body;
   if (!chatId) return res.status(400).json({ error: 'chatId required' });
   
-  // Отправить событие "typing-indicator" через Pusher
-  const pusher = getSocket();
-  if (pusher) {
-    await pusher.trigger(`chat-${chatId}`, 'typing-indicator', {
+  // Отправить событие "typing-indicator" через SSE/Pusher
+  try {
+    await publishChatEvent(chatId, 'typing-indicator', {
       userId: session.user.id,
       name: session.user.name || '',
       timestamp: Date.now()
     });
+  } catch (e) {
+    console.error('[TYPING] Error publishing typing event:', e);
   }
   return res.status(200).json({ ok: true });
 }

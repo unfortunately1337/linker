@@ -8,8 +8,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../auth/[...nextauth]';
 import { getStoragePath, ensureDir } from '../../../lib/storage';
 import { uploadLimiter } from '../../../lib/rateLimiter';
-// No encryption for voice files anymore — store raw files under pages/api/.private_media/voice
-import { getSocket } from '../../../lib/socket';
+import { publishMessageEvent } from '../../../lib/realtime';
 
 export const config = {
 	api: {
@@ -278,15 +277,12 @@ async function voiceUploadHandler(req: NextApiRequest, res: NextApiResponse) {
 								 console.error('[VOICE UPLOAD] Fallback file write failed', fbErr);
 							 }
 		   }
-		// Отправляем событие в Pusher
+		// Отправляем событие в SSE/Pusher
 		try {
 			const payload = { id: message.id, sender: userId, text: '', createdAt: message.createdAt, audioUrl: urlValue, persisted, dbError };
-			const pusher = getSocket();
-			if (pusher) {
-				await pusher.trigger(`chat-${chatId}`, 'new-message', payload);
-			}
+			await publishMessageEvent(chatId, 'new-message', payload);
 		} catch (pErr) {
-			console.error('[VOICE UPLOAD] Pusher trigger failed:', pErr);
+			console.error('[VOICE UPLOAD] Error publishing event:', pErr);
 		}
 		// Include debug info so client/dev can verify the file on disk
 		try {

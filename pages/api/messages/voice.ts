@@ -4,7 +4,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '../../../lib/prisma';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../auth/[...nextauth]';
-import { getSocket } from '../../../lib/socket';
+import { publishChatEvent } from '../../../lib/realtime';
 // Compatible parsing with multiple `formidable` versions
 import fs from 'fs';
 import path from 'path';
@@ -64,9 +64,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         audioUrl: String(audioUrl)
       }
     });
-    const pusher = getSocket();
-    if (pusher) {
-      await pusher.trigger(`chat-${chatId}`, 'new-voice', { ...message, audioUrl });
+    try {
+      await publishChatEvent(String(chatId), 'new-voice', { ...message, audioUrl });
+    } catch (e) {
+      console.error('[VOICE MESSAGE] Error publishing:', e);
     }
     return res.status(200).json({ message });
 }

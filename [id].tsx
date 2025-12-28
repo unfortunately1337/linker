@@ -1,4 +1,3 @@
-import Pusher from 'pusher-js';
 import React, { useEffect, useState, useRef } from 'react';
 import Head from 'next/head';
 import { FaPaperPlane } from 'react-icons/fa';

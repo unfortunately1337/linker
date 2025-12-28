@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, Suspense } from 'react';
 import dynamic from 'next/dynamic';
-import Pusher from 'pusher-js';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import { getFriendDisplayName } from '../../lib/hooks';
@@ -133,53 +132,51 @@ const ChatPage: React.FC = () => {
     setLastMessages(lm);
   };
 
-  // Pusher подписка на новые сообщения для обновления последних сообщений
-  const pusherRef = useRef<Pusher|null>(null);
+  // SSE подписка на новые сообщения для обновления последних сообщений
+  const socketRef = useRef<any>(null);
 
   useEffect(() => {
     fetchChats();
 
-    // Подписка на Pusher для всех чатов
-    if (pusherRef.current) {
-      pusherRef.current.disconnect();
-      pusherRef.current = null;
-    }
+    // Подписка на SSE для всех чатов
     if (!chats.length) return;
-    const pusher = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY || '', {
-      cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER || '',
-      forceTLS: true,
-    });
-    pusherRef.current = pusher;
-    chats.forEach(chat => {
-      const channel = pusher.subscribe(`chat-${chat.id}`);
-      channel.bind('new-message', (msg: any) => {
-        setLastMessages(prev => ({ ...prev, [chat.id]: msg }));
-      });
-      // Subscribe to status changes for the other participant (1:1 chats)
-      if (!chat.name) {
-        const meId = (session?.user as any)?.id as string | undefined;
-        const otherUser = chat.users.find(u => u.id !== meId);
-        if (otherUser) {
-          try {
-            const uChannel = pusher.subscribe(`user-${otherUser.id}`);
-            uChannel.bind('status-changed', (data: any) => {
-              // expected data: { userId, status }
-              setChats(prev => prev.map(c => ({
-                ...c,
-                users: c.users.map(u => u.id === data.userId ? { ...u, status: data.status } : u)
-              })));
-            });
-          } catch (e) {
-            // ignore
+    
+    const meId = (session?.user as any)?.id as string | undefined;
+    if (!meId) return;
+
+    // Initialize socket client and subscribe to chat channels
+    const { getSocketClient } = require('@/lib/socketClient');
+    const socket = getSocketClient();
+    socketRef.current = socket;
+
+    if (socket) {
+      chats.forEach(chat => {
+        socket.on(`chat-${chat.id}:new-message`, (msg: any) => {
+          setLastMessages(prev => ({ ...prev, [chat.id]: msg }));
+        });
+
+        // Subscribe to status changes for the other participant (1:1 chats)
+        if (!chat.name) {
+          const otherUser = chat.users.find(u => u.id !== meId);
+          if (otherUser) {
+            try {
+              socket.on(`user-${otherUser.id}:status-changed`, (data: any) => {
+                // expected data: { userId, status }
+                setChats(prev => prev.map(c => ({
+                  ...c,
+                  users: c.users.map(u => u.id === data.userId ? { ...u, status: data.status } : u)
+                })));
+              });
+            } catch (e) {
+              // ignore
+            }
           }
         }
-      }
-    });
+      });
+    }
+
     return () => {
-      if (pusherRef.current) {
-        pusherRef.current.disconnect();
-        pusherRef.current = null;
-      }
+      // cleanup not needed with SSE
     };
     // eslint-disable-next-line
   }, [session, chats.length]);

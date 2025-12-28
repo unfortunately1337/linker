@@ -7,8 +7,7 @@ import { getStoragePath, ensureDir } from '../../../lib/storage';
 import prisma from '../../../lib/prisma';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../auth/[...nextauth]';
-// No encryption for video files — store raw files under pages/api/.private_media/video
-import { getSocket } from '../../../lib/socket';
+import { publishMessageEvent } from '../../../lib/realtime';
 import { uploadLimiter } from '../../../lib/rateLimiter';
 
 export const config = {
@@ -219,16 +218,13 @@ export async function videoUploadHandler(req: NextApiRequest, res: NextApiRespon
         message = { id: `temp-${Date.now()}`, chatId, senderId: userId, text: '', createdAt: new Date().toISOString() };
         persisted = false;
       }
-      // Уведомляем подписчиков через Pusher
+      // Уведомляем подписчиков через SSE/Pusher
       try {
         const payload: any = { id: message.id, sender: userId, text: '', createdAt: message.createdAt, videoUrl, persisted, dbError };
         if (thumbnailUrl) payload.thumbnailUrl = thumbnailUrl;
-        const pusher = getSocket();
-        if (pusher) {
-          await pusher.trigger(`chat-${chatId}`, 'new-message', payload);
-        }
+        await publishMessageEvent(chatId, 'new-message', payload);
       } catch (pErr) {
-        console.error('[VIDEO UPLOAD] Pusher trigger failed:', pErr);
+        console.error('[VIDEO UPLOAD] Error publishing event:', pErr);
       }
       // Include debug fields so the client/dev can verify file was actually saved
       const savedFilePath = path.join(getStoragePath('video'), path.basename(videoUrl));

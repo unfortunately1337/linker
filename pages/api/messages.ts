@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '../../lib/prisma';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from './auth/[...nextauth]';
-import { getSocket } from '../../lib/socket';
+import { publishMessageEvent, publishUserEvent } from '../../lib/realtime';
 import { encryptMessage, decryptMessage } from '../../lib/encryption';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -216,24 +216,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             // content omitted intentionally
           };
 
-          // Trigger chat channel and per-user channels in parallel (no plaintext)
-          const pusher = getSocket();
+          // Trigger chat channel and per-user channels in parallel (SSE/Pusher)
           try {
-            if (pusher) {
-              await pusher.trigger(`chat-${chatId}`, 'new-message', messageMeta);
-            }
+            await publishMessageEvent(chatId, 'new-message', messageMeta);
           } catch (e) {
-            console.error('[MESSAGES API] Failed to trigger chat message', e);
+            console.error('[MESSAGES API] Failed to publish chat message', e);
           }
           recipients.forEach((r: any) => {
             try {
-              if (pusher) {
-                pusher.trigger(`user-${r.id}`, 'new-message', userPayload).catch((e: any) => {
-                  console.error('[MESSAGES API] Failed to trigger user notification for', r.id, e);
-                });
-              }
+              publishUserEvent(r.id, 'status-changed', userPayload).catch((e: any) => {
+                console.error('[MESSAGES API] Failed to publish user notification for', r.id, e);
+              });
             } catch (e) {
-              console.error('[MESSAGES API] Failed to trigger user notification for', r.id, e);
+              console.error('[MESSAGES API] Failed to publish user notification for', r.id, e);
             }
           });
 

@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '../../../lib/prisma';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../auth/[...nextauth]';
-import { getSocket } from '../../../lib/socket';
+import { publishMessageEvent } from '../../../lib/realtime';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -46,20 +46,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       chatId: msg.chatId
     });
 
-    // Broadcast status change via Pusher to all participants in the chat
+    // Broadcast status change via SSE/Pusher to all participants in the chat
     try {
       const pushPayload = {
         messageId: updatedMsg.id,
         status: updatedMsg.status,
         changedBy: requesterId
       };
-      console.log('[MESSAGES/STATUS] Broadcasting via Pusher:', pushPayload);
-      const pusher = getSocket();
-      if (pusher) {
-        await pusher.trigger(`chat-${msg.chatId}`, 'message-status-changed', pushPayload);
-      }
+      console.log('[MESSAGES/STATUS] Broadcasting:', pushPayload);
+      await publishMessageEvent(msg.chatId, 'message-status-changed', pushPayload);
     } catch (e) {
-      console.error('[MESSAGES/STATUS] Pusher error:', e);
+      console.error('[MESSAGES/STATUS] Error:', e);
     }
 
     return res.status(200).json({ messageId: updatedMsg.id, status: updatedMsg.status });

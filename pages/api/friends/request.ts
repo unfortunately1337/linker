@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import prisma from "../../../lib/prisma";
-import { getSocket } from '../../../lib/socket';
+import { publishUserEvent } from '../../../lib/realtime';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../auth/[...nextauth]';
 
@@ -28,15 +28,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const fromUser = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, login: true, link: true, avatar: true } });
     if (fromUser) {
-      // Trigger Pusher event to the recipient's user channel (include link)
+      // Trigger SSE/Pusher event to the recipient's user channel (include link)
       try {
-        const pusher = getSocket();
-        if (pusher) {
-          await pusher.trigger(`user-${friendId}`, 'friend-request', { fromId: fromUser.id, fromLogin: fromUser.login, fromLink: fromUser.link || null, fromAvatar: fromUser.avatar || null });
-        }
+        await publishUserEvent(friendId, 'friend-request', { fromId: fromUser.id, fromLogin: fromUser.login, fromLink: fromUser.link || null, fromAvatar: fromUser.avatar || null });
       } catch (e) {
         // log but don't fail the request
-        console.error('Pusher trigger failed for friend-request:', e);
+        console.error('Error publishing friend-request:', e);
       }
     }
   } catch (e) {

@@ -5,7 +5,7 @@ import { authOptions } from '../auth/[...nextauth]';
 import { decryptMessage } from '../../../lib/encryption';
 import path from 'path';
 import fs from 'fs';
-import { getSocket } from '../../../lib/socket';
+import { publishMessageEvent } from '../../../lib/realtime';
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -115,21 +115,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           await tryUnlink(fullPath);
         }
 
-        // Уведомляем подписчиков через Pusher
+        // Уведомляем подписчиков через SSE/Pusher
         try {
           if (msg.chatId) {
-            const pusher = getSocket();
-            if (pusher) {
-              await pusher.trigger(`chat-${msg.chatId}`, 'message-deleted', {
-                messageId: id,
-                chatId: msg.chatId,
-                deletedBy: session.user.id
-              });
-            }
-            console.log('[DELETE MESSAGE][BG] Pusher event sent for chat:', msg.chatId);
+            await publishMessageEvent(msg.chatId, 'message-deleted', {
+              messageId: id,
+              chatId: msg.chatId,
+              deletedBy: session.user.id
+            });
+            console.log('[DELETE MESSAGE][BG] Event sent for chat:', msg.chatId);
           }
         } catch (pErr) {
-          console.error('[DELETE MESSAGE][BG] Pusher trigger error:', pErr);
+          console.error('[DELETE MESSAGE][BG] Error publishing event:', pErr);
         }
       } catch (bgErr) {
         console.error('[DELETE MESSAGE][BG] Background cleanup error:', bgErr);

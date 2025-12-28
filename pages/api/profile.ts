@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import prisma from "../../lib/prisma";
-import { getSocket } from "../../lib/socket";
+import { publishUserEvent } from "../../lib/realtime";
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from './auth/[...nextauth]';
 import { getUserSessions } from '../../lib/sessions';
@@ -236,12 +236,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
           if (newStatus !== prevStatus) {
             try {
-              const pusher = getSocket();
-              if (pusher) {
-                await pusher.trigger(`user-${currentUserId}`, 'status-changed', { userId: currentUserId, status: newStatus });
-              }
+              await publishUserEvent(currentUserId, 'status-changed', { userId: currentUserId, status: newStatus });
             } catch (pErr) {
-              console.error('[PROFILE] Failed to trigger status-changed:', String(pErr));
+              console.error('[PROFILE] Failed to publish status-changed:', String(pErr));
             }
           }
         }

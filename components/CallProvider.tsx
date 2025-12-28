@@ -1,6 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useSession } from 'next-auth/react';
-import { getPusherClient } from '../lib/pusher';
 import { getSocketClient } from '../lib/socketClient';
 import { getFriendDisplayName } from '../lib/hooks';
 import { playIncomingCallRingtone, playOutgoingCallTone, stopRingtone } from '../lib/callRingtone';

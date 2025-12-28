@@ -1,4 +1,6 @@
-import { getPusherClient } from './pusher';
+import { getSSEClient, initializeSSE } from './sseClient';
+
+const USE_SSE = true;  // Always use SSE on client, Pusher support removed
 
 interface SocketClientAdapter {
   emit: (event: string, data?: any) => void;
@@ -14,110 +16,76 @@ export function getSocketClient(): SocketClientAdapter | null {
   if (typeof window === 'undefined') return null;
   
   if (!socketClientAdapter) {
-    const pusher = getPusherClient();
-    if (!pusher) return null;
-    
-    socketClientAdapter = {
-      _channels: new Map(),
-      _bindings: new Map(),
-      
-      emit: (event: string, data?: any) => {
-        // For client-side emits, we need to send to server via API
-        // This is typically used for typing events and user joins
-        if (event === 'typing') {
-          const chatId = (typeof window !== 'undefined') ? (window as any).__chatId : null;
-          if (chatId) {
-            fetch('/api/messages/typing', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ chatId })
-            }).catch(e => console.error('[Pusher] Failed to send typing event:', e));
-          }
-        }
-        // join-user and join-chat are no longer needed with Pusher's channel subscription
-        console.log('[Pusher Adapter] Emit:', event, data);
-      },
-      
-      on: (event: string, callback: (data: any) => void) => {
-        if (!pusher) {
-          console.error('[Pusher.on] Pusher is null!');
-          return;
-        }
-        
-        const userId = (typeof window !== 'undefined') ? (window as any).__userId : null;
-        const chatId = (typeof window !== 'undefined') ? (window as any).__chatId : null;
-        console.log(`[Pusher.on] Event: ${event}, userId:`, userId, 'chatId:', chatId);
-        
-        // Store callback for this event
-        if (!socketClientAdapter!._bindings.has(event)) {
-          socketClientAdapter!._bindings.set(event, []);
-        }
-        socketClientAdapter!._bindings.get(event)!.push(callback);
-        
-        // Subscribe to appropriate channels based on event
-        let channels: string[] = [];
-        
-        if (event === 'status-changed' || event === 'friend-request' || event === 'webrtc-offer' || event === 'webrtc-answer' || event === 'webrtc-candidate' || event === 'webrtc-end') {
-          // User-specific channel (requires user ID from session)
-          if (typeof window !== 'undefined' && (window as any).__userId) {
-            channels.push(`user-${(window as any).__userId}`);
-          } else {
-            console.warn(`[Pusher.on] No userId for event: ${event}`);
-          }
-        } else if (event === 'new-message' || event === 'typing-indicator' || event === 'message-deleted' || event === 'message-status-changed') {
-          // Chat-specific channel (requires chat ID)
-          if (typeof window !== 'undefined' && (window as any).__chatId) {
-            channels.push(`chat-${(window as any).__chatId}`);
-          }
-        } else if (event === 'viewer-state' || event === 'new-voice') {
-          if (typeof window !== 'undefined' && (window as any).__chatId) {
-            channels.push(`chat-${(window as any).__chatId}`);
-          }
-        }
-        
-        console.log(`[Pusher.on] Channels for ${event}:`, channels);
-        
-        if (channels.length === 0) {
-          console.warn(`[Pusher.on] No channels found for event: ${event}`);
-          return;
-        }
-        
-        channels.forEach(channelName => {
-          if (!socketClientAdapter!._channels.has(channelName)) {
-            console.log(`[Pusher.on] Subscribing to channel: ${channelName} for event: ${event}`);
-            const subscription = pusher.subscribe(channelName);
-            socketClientAdapter!._channels.set(channelName, subscription);
-            console.log(`[Pusher.on] Subscribed to ${channelName}`);
-          }
-          
-          const subscription = socketClientAdapter!._channels.get(channelName);
-          if (subscription) {
-            console.log(`[Pusher.on] Binding event '${event}' to channel '${channelName}'`);
-            subscription.bind(event, callback);
-            console.log(`[Pusher.on] Successfully bound '${event}' to '${channelName}'`);
-          } else {
-            console.error(`[Pusher.on] No subscription for channel: ${channelName}`);
-          }
-        });
-      },
-      
-      off: (event: string, callback: (data: any) => void) => {
-        if (!pusher) return;
-        
-        // Remove callback from bindings
-        const callbacks = socketClientAdapter!._bindings.get(event);
-        if (callbacks) {
-          const index = callbacks.indexOf(callback);
-          if (index > -1) callbacks.splice(index, 1);
-        }
-        
-        // Unbind from channels
-        socketClientAdapter!._channels.forEach((subscription) => {
-          subscription?.unbind(event, callback);
-        });
-      }
-    };
+    // Always use SSE adapter on client
+    socketClientAdapter = createSSEAdapter();
   }
   
   return socketClientAdapter;
+}
+
+/**
+ * Create SSE-based adapter
+ */
+function createSSEAdapter(): SocketClientAdapter {
+  let sseInitialized = false;
+
+  return {
+    _channels: new Map(),
+    _bindings: new Map(),
+    
+    emit: (event: string, data?: any) => {
+      // For client-side emits, we need to send to server via API
+      if (event === 'typing') {
+        const chatId = (typeof window !== 'undefined') ? (window as any).__chatId : null;
+        if (chatId) {
+          fetch('/api/messages/typing', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chatId })
+          }).catch(e => console.error('[SSE] Failed to send typing event:', e));
+        }
+      }
+      console.log('[SSE Adapter] Emit:', event, data);
+    },
+    
+    on: (event: string, callback: (data: any) => void) => {
+      const userId = (typeof window !== 'undefined') ? (window as any).__userId : null;
+      const chatId = (typeof window !== 'undefined') ? (window as any).__chatId : null;
+      
+      console.log(`[SSE.on] Event: ${event}, userId:`, userId, 'chatId:', chatId);
+      
+      // Initialize SSE connection if not already done
+      if (!sseInitialized && userId) {
+        sseInitialized = true;
+        initializeSSE(userId, chatId).catch((err) => {
+          console.error('[SSE] Failed to initialize:', err);
+        });
+      }
+      
+      // Store callback for this event
+      if (!socketClientAdapter!._bindings.has(event)) {
+        socketClientAdapter!._bindings.set(event, []);
+      }
+      socketClientAdapter!._bindings.get(event)!.push(callback);
+      
+      // Get SSE client and register the listener
+      const sseClient = getSSEClient();
+      sseClient.on(event, callback);
+      
+      console.log(`[SSE.on] Registered listener for event: ${event}`);
+    },
+    
+    off: (event: string, callback: (data: any) => void) => {
+      // Remove callback from bindings
+      const callbacks = socketClientAdapter!._bindings.get(event);
+      if (callbacks) {
+        const index = callbacks.indexOf(callback);
+        if (index > -1) callbacks.splice(index, 1);
+      }
+      
+      // Unregister from SSE client
+      const sseClient = getSSEClient();
+      sseClient.off(event, callback);
+    }
+  };
 }

@@ -870,12 +870,35 @@ const ChatWithFriend: React.FC = () => {
         }
       };
 
+      // Обработчик для изменения реакций на сообщение
+      const onMessageReactionsChanged = (data: any) => {
+        try {
+          if (!data || !data.messageId) return;
+          console.log('[SSE] message-reactions-changed event received:', data);
+          setMessages(prev => {
+            const updated = prev.map(m => {
+              if (m.id === data.messageId) {
+                console.log('[SSE] Updating message reactions:', m.id);
+                return { ...m, reactions: data.reactions || [] };
+              }
+              return m;
+            });
+            return updated;
+          });
+        } catch (e) {
+          console.error('[SSE] message-reactions-changed handler error', e);
+        }
+      };
+
       socketClient?.on('status-changed', onStatus);
       socketClient?.on('new-message', onNewMessage);
       socketClient?.on('typing-indicator', onTypingIndicator);
       socketClient?.on('message-deleted', onMessageDeleted);
       socketClient?.on('viewer-state', onViewer);
       socketClient?.on('message-status-changed', onMessageStatusChanged);
+      socketClient?.on('message-reactions-changed', onMessageReactionsChanged);
+      socketClient?.on('reaction-added', onMessageReactionsChanged);  // Alternative name
+      socketClient?.on('reaction-removed', onMessageReactionsChanged);  // Alternative name
       
       // cleanup
       return () => {
@@ -887,6 +910,9 @@ const ChatWithFriend: React.FC = () => {
           try { socketClient?.off('message-deleted', onMessageDeleted); } catch (e) {}
           try { socketClient?.off('viewer-state', onViewer); } catch (e) {}
           try { socketClient?.off('message-status-changed', onMessageStatusChanged); } catch (e) {}
+          try { socketClient?.off('message-reactions-changed', onMessageReactionsChanged); } catch (e) {}
+          try { socketClient?.off('reaction-added', onMessageReactionsChanged); } catch (e) {}
+          try { socketClient?.off('reaction-removed', onMessageReactionsChanged); } catch (e) {}
         } catch (e) {}
       };
     } catch (e) {

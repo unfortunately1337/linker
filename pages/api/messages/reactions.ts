@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../auth/[...nextauth]';
 import prisma from '../../../lib/prisma';
+import { publishMessageEvent } from '../../../lib/realtime';
 
 // In-memory store for reactions (fallback)
 const reactionsStore: Record<string, Record<string, string[]>> = {};
@@ -87,6 +88,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         const reactionsWithUsers = Object.values(reactionsMap);
         console.log('[REACTION] Response:', { messageId, reactions: reactionsWithUsers.map(r => ({ emoji: r.emoji, count: r.count })) });
+        
+        // Get the message to find out which chat it belongs to
+        const message = await prisma.message.findUnique({
+          where: { id: messageId },
+          select: { chatId: true }
+        });
+        
+        if (message) {
+          // Publish reaction change event to chat
+          try {
+            await publishMessageEvent(message.chatId, 'message-reactions-changed', {
+              messageId,
+              reactions: reactionsWithUsers,
+              changedBy: userId,
+              emoji,
+              emoji_removed: existingReaction ? true : false
+            });
+          } catch (e) {
+            console.error('[REACTION] Error publishing event:', e);
+          }
+        }
+        
         return res.status(200).json({ messageId, reactions: reactionsWithUsers });
       } catch (dbErr) {
         // Fallback to in-memory if DB fails
