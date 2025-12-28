@@ -52,13 +52,15 @@ function createSSEAdapter(): SocketClientAdapter {
       const userId = (typeof window !== 'undefined') ? (window as any).__userId : null;
       const chatId = (typeof window !== 'undefined') ? (window as any).__chatId : null;
       
-      console.log(`[SSE.on] Event: ${event}, userId:`, userId, 'chatId:', chatId);
+      console.log(`[SSE.on] Event: ${event}, userId:`, userId, 'chatId:', chatId, 'sseInitialized:', sseInitialized);
       
       // Initialize SSE connection if not already done
       if (!sseInitialized && userId) {
+        console.log('[SSE.on] Initializing SSE with userId:', userId, 'chatId:', chatId);
         sseInitialized = true;
         initializeSSE(userId, chatId).catch((err) => {
           console.error('[SSE] Failed to initialize:', err);
+          sseInitialized = false;
         });
       }
       

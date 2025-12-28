@@ -64,13 +64,54 @@ class SSEClient {
           this.handleDisconnect();
         });
 
-        // Generic event handler
+        // Generic event handler - listen to all event types
+        const eventHandler = (eventName: string) => {
+          return (event: Event) => {
+            try {
+              const msgEvent = event as any;
+              const data = msgEvent.data ? JSON.parse(msgEvent.data) : null;
+              console.log(`[SSE] Received event: ${eventName}, data:`, data);
+              this.handleEvent(eventName, data);
+            } catch (err) {
+              console.error(`[SSE] Failed to parse ${eventName} event:`, err);
+            }
+          };
+        };
+
+        // Listen for common event types
+        const eventTypes = [
+          'new-message',
+          'message-deleted',
+          'message-status-changed',
+          'message-reactions-changed',
+          'reaction-added',
+          'reaction-removed',
+          'typing-indicator',
+          'viewer-state',
+          'status-changed',
+          'friend-request',
+          'webrtc-offer',
+          'webrtc-answer',
+          'webrtc-candidate',
+          'webrtc-end',
+          'new-voice',
+        ];
+
+        eventTypes.forEach(eventType => {
+          this.eventSource?.addEventListener(eventType, eventHandler(eventType));
+        });
+
+        // Keep generic message handler as fallback
         this.eventSource.onmessage = (event: any) => {
           try {
-            const { type, data } = JSON.parse(event.data);
-            this.handleEvent(type, data);
+            // Try to parse as named event data
+            const data = JSON.parse(event.data);
+            // If data has type field, use it
+            if (data.type && data.data) {
+              this.handleEvent(data.type, data.data);
+            }
           } catch (err) {
-            console.error('[SSE] Failed to parse message:', err);
+            // Ignore - handled by named event handlers
           }
         };
 

@@ -104,10 +104,14 @@ export default function Sidebar() {
   useEffect(() => {
     const u = getUser();
     if (!u) return;
-    const socketClient = getSocketClient();
-    if (!socketClient) return;
     
     // Set window variable for socketClient adapter to know user ID
+    if (typeof window !== 'undefined') {
+      (window as any).__userId = u.id;
+    }
+    
+    const socketClient = getSocketClient();
+    if (!socketClient) return;
     if (typeof window !== 'undefined') {
       (window as any).__userId = u.id;
     }

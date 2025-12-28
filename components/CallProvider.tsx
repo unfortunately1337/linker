@@ -143,6 +143,13 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     (async () => {
       try {
+        // Check if mediaDevices is available
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          console.error('[CallProvider] navigator.mediaDevices.getUserMedia is not available - HTTPS required');
+          endCall();
+          return;
+        }
+        
         // acquire local audio
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         localStreamRef.current = stream;
@@ -224,6 +231,13 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
     setMinimized(false);
     try {
+      // Check if mediaDevices is available
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        console.error('[CallProvider] navigator.mediaDevices.getUserMedia is not available - HTTPS required');
+        endCall();
+        return;
+      }
+      
       const localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
       localStreamRef.current = localStream;
       audioStreamRef.current = localStream;

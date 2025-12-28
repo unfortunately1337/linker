@@ -108,6 +108,11 @@ const ChatWithFriend: React.FC = () => {
     if (status === "loading" || !session) return;
     const userId = (session.user as any)?.id;
     if (!id || !userId) return;
+    
+    // Set window variables for socketClient to know current context
+    if (typeof window !== 'undefined') {
+      (window as any).__userId = userId;
+    }
 
     fetch(`/api/profile?userId=${id}`, { credentials: 'include' })
       .then(res => res.json())
@@ -123,6 +128,10 @@ const ChatWithFriend: React.FC = () => {
       .then(data => {
         if (data?.chat?.id) {
           setChatId(data.chat.id);
+          // Set window.__chatId for socketClient
+          if (typeof window !== 'undefined') {
+            (window as any).__chatId = data.chat.id;
+          }
           fetch(`/api/messages?chatId=${data.chat.id}`, { credentials: 'include' })
             .then(res => res.json())
             .then(data => setMessages(Array.isArray(data.messages) ? data.messages : []));
