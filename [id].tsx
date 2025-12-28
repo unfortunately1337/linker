@@ -62,38 +62,38 @@ const ChatWithFriend: React.FC = () => {
   const [friend, setFriend] = useState<{ id: string, name: string, avatar?: string | null, role?: string } | null>(null);
   const [chatId, setChatId] = useState<string | null>(null);
 
-  // Подключение к Pusher
+  // Подключение к SSE
   useEffect(() => {
     if (!chatId || !session) return;
-    const pusher = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY || '', {
-      cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER || '',
-      forceTLS: true,
-    });
-    const channel = pusher.subscribe(`chat-${chatId}`);
+    const { getSocketClient } = require('@/lib/socketClient');
+    const socketClient = getSocketClient();
+    if (!socketClient) return;
 
     let typingTimeout: NodeJS.Timeout | null = null;
     let speakingTimeout: NodeJS.Timeout | null = null;
 
-    channel.bind('typing', (data: { userId: string, name: string }) => {
+    const onTyping = (data: { userId: string, name: string }) => {
       if (data.userId !== (session.user as any).id) {
         setIsTyping(data.name || 'Друг');
         if (typingTimeout) clearTimeout(typingTimeout);
         typingTimeout = setTimeout(() => setIsTyping(null), 2000);
       }
-    });
+    };
 
-    channel.bind('speaking', (data: { userId: string, name: string }) => {
+    const onSpeaking = (data: { userId: string, name: string }) => {
       if (data.userId !== (session.user as any).id) {
         setIsSpeaking(data.name || 'Друг');
         if (speakingTimeout) clearTimeout(speakingTimeout);
         speakingTimeout = setTimeout(() => setIsSpeaking(null), 2000);
       }
-    });
+    };
+
+    socketClient.on('typing-indicator', onTyping);
+    socketClient.on('speaking', onSpeaking);
 
     return () => {
-      channel.unbind_all();
-      channel.unsubscribe();
-      pusher.disconnect();
+      socketClient.off('typing-indicator', onTyping);
+      socketClient.off('speaking', onSpeaking);
       if (typingTimeout) clearTimeout(typingTimeout);
       if (speakingTimeout) clearTimeout(speakingTimeout);
     };
