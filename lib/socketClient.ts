@@ -71,8 +71,13 @@ function createSSEAdapter(): SocketClientAdapter {
       if (!sseInitialized && userId) {
         console.log('[SOCKET-ADAPTER] 🔌 Initializing SSE with userId=' + userId + ', chatId=' + (chatId || 'none'));
         sseInitialized = true;
-        initializeSSE(userId, chatId).catch((err) => {
-          console.error('[SOCKET-ADAPTER] ❌ Failed to initialize SSE:', err);
+        const initStartTime = Date.now();
+        initializeSSE(userId, chatId).then(() => {
+          const initDuration = Date.now() - initStartTime;
+          console.log(`[SOCKET-ADAPTER] ✅ SSE initialized successfully (${initDuration}ms)`);
+        }).catch((err) => {
+          const initDuration = Date.now() - initStartTime;
+          console.error(`[SOCKET-ADAPTER] ❌ Failed to initialize SSE after ${initDuration}ms:`, err);
           sseInitialized = false;
         });
       } else if (sseInitialized) {

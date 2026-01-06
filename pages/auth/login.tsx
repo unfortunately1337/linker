@@ -2,11 +2,100 @@ import { useState, useCallback } from "react";
 import CodeInput from "../../components/CodeInputMobile";
 import { useRouter } from "next/router";
 import dynamic from 'next/dynamic';
-// Lottie should only render on the client to avoid SSR/client markup mismatches
 const Lottie = dynamic(() => import('lottie-react'), { ssr: false });
 import ToastNotification from "../../components/ToastNotification";
 import loginAnimation from "../../public/aui/login.json";
 import { signIn } from "next-auth/react";
+
+/**
+ * Helper to convert base64url string to Uint8Array
+ */
+function base64urlToBuffer(str: string | undefined | null): Uint8Array {
+  if (!str) {
+    throw new Error('Input string is empty or null');
+  }
+
+  try {
+    const padLength = 4 - (str.length % 4);
+    const padded = padLength < 4 ? str + '='.repeat(padLength) : str;
+    const base64 = padded.replace(/\-/g, '+').replace(/_/g, '/');
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
+  } catch (err) {
+    console.error('[base64urlToBuffer] Error converting:', err);
+    throw err;
+  }
+}
+
+/**
+ * Convert base64url challenge and other binary fields to Uint8Array
+ */
+function convertOptionsForWebAuthn(options: any): any {
+  if (!options) throw new Error('Options is null/undefined');
+  
+  // Create new object with all properties
+  const result: any = {};
+  
+  for (const key in options) {
+    if (!Object.prototype.hasOwnProperty.call(options, key)) continue;
+    
+    const value = options[key];
+    
+    if (key === 'challenge') {
+      // Challenge must be converted from base64url string to Uint8Array
+      if (value === null || value === undefined) {
+        throw new Error(`Challenge is ${value}`);
+      }
+      
+      if (typeof value === 'string') {
+        result[key] = base64urlToBuffer(value);
+      } else if (value instanceof Uint8Array) {
+        // Already converted, use as-is
+        result[key] = value;
+      } else if (typeof value === 'object' && '__type' in value) {
+        // Might be a serialized object like {__type: 'Uint8Array', data: [...]}
+        if (value.__type === 'Uint8Array' && Array.isArray(value.data)) {
+          result[key] = new Uint8Array(value.data);
+        } else {
+          throw new Error(`Challenge has unexpected structure: ${JSON.stringify(value)}`);
+        }
+      } else {
+        throw new Error(`Challenge must be string or Uint8Array, got ${typeof value}`);
+      }
+    } else if (key === 'user' && value && typeof value === 'object') {
+      // Copy user object and convert user.id if needed
+      result[key] = { ...value };
+      if (typeof value.id === 'string') {
+        result[key].id = base64urlToBuffer(value.id);
+      }
+    } else if (key === 'excludeCredentials' && Array.isArray(value)) {
+      // Convert credential IDs in excludeCredentials
+      result[key] = value.map((cred: any) => {
+        if (typeof cred.id === 'string') {
+          return { ...cred, id: base64urlToBuffer(cred.id) };
+        }
+        return cred;
+      });
+    } else if (key === 'allowCredentials' && Array.isArray(value)) {
+      // Convert credential IDs in allowCredentials
+      result[key] = value.map((cred: any) => {
+        if (typeof cred.id === 'string') {
+          return { ...cred, id: base64urlToBuffer(cred.id) };
+        }
+        return cred;
+      });
+    } else {
+      // Copy other properties as-is
+      result[key] = value;
+    }
+  }
+  
+  return result;
+}
 
 export default function LoginPage() {
   const [login, setLogin] = useState("");

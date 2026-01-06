@@ -88,11 +88,13 @@ export async function registerSSEConnection(
   chatId?: string
 ): Promise<void> {
   // Set up SSE headers
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.setHeader('X-Accel-Buffering', 'no');
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no',
+    'Access-Control-Allow-Origin': '*',
+  });
   
   // Initialize Redis if needed
   await initRedis();
@@ -121,11 +123,17 @@ export async function registerSSEConnection(
   console.log(`[SSE] Active connections: ${activeConnections.size}`);
   
   // Send initial connection message
-  sendSSEMessage(res, {
+  console.log(`[SSE] Sending 'connected' event for connection ${connectionId}...`);
+  const connectedSent = sendSSEMessage(res, {
     type: 'connected',
     data: { connectionId },
     timestamp: Date.now(),
   });
+  if (connectedSent) {
+    console.log(`[SSE] ✅ 'connected' event sent successfully for ${connectionId}`);
+  } else {
+    console.error(`[SSE] ❌ Failed to send 'connected' event for ${connectionId}`);
+  }
   
   // Keep connection alive with heartbeat
   const heartbeat = setInterval(() => {
@@ -142,14 +150,24 @@ export async function registerSSEConnection(
   // Handle client disconnect
   res.on('close', () => {
     clearInterval(heartbeat);
+    const connectionInfo = activeConnections.get(connectionId);
     activeConnections.delete(connectionId);
-    console.log(`[SSE] Connection ${connectionId} closed`);
+    console.log(`[SSE] Connection ${connectionId} closed gracefully`);
+    console.log(`[SSE] User ${userId || 'anonymous'} disconnected. Remaining connections: ${activeConnections.size}`);
+    if (connectionInfo) {
+      console.log(`[SSE] Connection summary - channels: [${Array.from(connectionInfo.channels).join(', ')}]`);
+    }
   });
   
-  res.on('error', (err) => {
-    console.error(`[SSE] Connection ${connectionId} error:`, err);
+  res.on('error', (err: any) => {
+    console.error(`[SSE] Connection ${connectionId} error:`, err?.message || err);
     clearInterval(heartbeat);
+    const connectionInfo = activeConnections.get(connectionId);
     activeConnections.delete(connectionId);
+    if (connectionInfo) {
+      console.log(`[SSE] Cleaned up after error. User ${userId || 'anonymous'}, channels: [${Array.from(connectionInfo.channels).join(', ')}]`);
+    }
+    console.log(`[SSE] Active connections after error: ${activeConnections.size}`);
   });
 }
 
@@ -165,29 +183,41 @@ export function unregisterSSEConnection(connectionId: string): void {
 // Send SSE message
 export function sendSSEMessage(res: NextApiResponse, event: SSEEvent): boolean {
   try {
-    res.write(`event: ${event.type}\n`);
-    res.write(`data: ${JSON.stringify(event.data)}\n\n`);
+    const eventStr = `event: ${event.type}\n`;
+    const dataStr = `data: ${JSON.stringify(event.data)}\n\n`;
+    console.log(`[SSE-SEND] Writing event: type=${event.type}, writable=${res.writable}, writableEnded=${res.writableEnded}`);
+    res.write(eventStr);
+    res.write(dataStr);
+    console.log(`[SSE-SEND] ✅ Event sent: ${event.type}`);
     return true;
   } catch (err) {
-    console.error('[SSE] Error sending message:', err);
+    console.error('[SSE-SEND] ❌ Error sending message:', err, 'event type:', event.type);
     return false;
   }
 }
 
 // Broadcast event to a specific channel
 async function broadcastToChannel(channel: string, event: SSEEvent): Promise<void> {
-  console.log(`[SSE] Broadcasting to channel ${channel}, type=${event.type}, connections=${activeConnections.size}`);
+  console.log(`[SSE] Broadcasting to channel ${channel}, type=${event.type}, total connections=${activeConnections.size}`);
   
   let broadcastCount = 0;
+  let failedCount = 0;
   for (const [connectionId, connection] of activeConnections.entries()) {
     if (connection.channels.has(channel)) {
       broadcastCount++;
       const success = sendSSEMessage(connection.res, event);
-      console.log(`[SSE] Sent to connection ${connectionId}: ${success ? 'OK' : 'FAILED'}`);
+      if (!success) {
+        failedCount++;
+        console.warn(`[SSE] Failed to send to connection ${connectionId} (userId: ${connection.userId || 'unknown'})`);
+      }
     }
   }
   
-  console.log(`[SSE] Broadcast complete: sent to ${broadcastCount} connections out of ${activeConnections.size}`);
+  if (failedCount > 0) {
+    console.warn(`[SSE] Broadcast complete with issues: sent to ${broadcastCount} connections (${failedCount} failed) out of ${activeConnections.size}`);
+  } else {
+    console.log(`[SSE] Broadcast complete: sent to ${broadcastCount} connections out of ${activeConnections.size}`);
+  }
 }
 
 // Publish event to Redis (will be distributed to all servers)

@@ -4,12 +4,13 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import { getFriendDisplayName } from '../../lib/hooks';
 const ToastNotification = dynamic(() => import('./ToastNotification'), { ssr: false });
-import SettingsModal from '../../components/SettingsModal';
+const LottiePlayer = dynamic(() => import('../../lib/LottiePlayer'), { ssr: false });
 import styles from '../../styles/Chat.module.css';
 
 interface Chat {
   id: string;
   name?: string | null;
+  avatarUrl?: string | null;
   users: { id: string; login: string; link?: string | null; avatar?: string | null; role?: string; backgroundUrl?: string | null }[];
   unreadCount?: number;
   lastMessage?: LastMessage | null;
@@ -98,13 +99,22 @@ const ChatPage: React.FC = () => {
   const [chats, setChats] = useState<Chat[]>([]);
   const [lastMessages, setLastMessages] = useState<Record<string, LastMessage | null>>({});
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
+  const [groupName, setGroupName] = useState('');
+  const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
+  const [friends, setFriends] = useState<any[]>([]);
+  const [creatingGroup, setCreatingGroup] = useState(false);
+  const [groupPhoto, setGroupPhoto] = useState<string | null>(null);
+  const [groupPhotoFile, setGroupPhotoFile] = useState<File | null>(null);
+  const [showMemberSelection, setShowMemberSelection] = useState(false);
+  const [memberSearch, setMemberSearch] = useState('');
   const { data: session } = useSession();
   const router = useRouter();
 
   const fetchChats = async () => {
     const userId = (session?.user && (session.user as any).id) ? (session.user as any).id : undefined;
     if (!userId) return;
+    
     const res = await fetch('/api/chats', { credentials: 'include' });
     if (!res.ok) return setChats([]);
     const data = await res.json();
@@ -130,6 +140,56 @@ const ChatPage: React.FC = () => {
     }
     console.log('lastMessages loaded:', lm);
     setLastMessages(lm);
+  };
+
+  const handleCreateGroup = async () => {
+    if (!groupName.trim()) {
+      setToast({ type: 'error', message: 'Введите название группы' });
+      return;
+    }
+    if (selectedMembers.length < 1) {
+      setToast({ type: 'error', message: 'Выберите минимум 1 участника' });
+      return;
+    }
+
+    setCreatingGroup(true);
+    try {
+      const res = await fetch('/api/chats', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: groupName,
+          userIds: selectedMembers,
+          avatarUrl: groupPhoto
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setToast({ type: 'success', message: 'Группа создана!' });
+        setShowCreateGroupModal(false);
+        setGroupName('');
+        setSelectedMembers([]);
+        setGroupPhoto(null);
+        setGroupPhotoFile(null);
+        setMemberSearch('');
+        // Refresh chat list
+        await fetchChats();
+        // Navigate to the new group
+        if (data.chat?.id) {
+          router.push(`/chat/${data.chat.id}`);
+        }
+      } else {
+        const error = await res.json();
+        setToast({ type: 'error', message: error.error || 'Ошибка при создании группы' });
+      }
+    } catch (err) {
+      console.error('Failed to create group:', err);
+      setToast({ type: 'error', message: 'Ошибка при создании группы' });
+    } finally {
+      setCreatingGroup(false);
+    }
   };
 
   // SSE подписка на новые сообщения для обновления последних сообщений
@@ -180,6 +240,39 @@ const ChatPage: React.FC = () => {
     };
     // eslint-disable-next-line
   }, [session, chats.length]);
+
+  // Загружаем друзей при открытии модалки создания группы
+  useEffect(() => {
+    const userId = (session?.user as any)?.id;
+    console.log('[Modal] showCreateGroupModal:', showCreateGroupModal, 'userId:', userId);
+    
+    if (!showCreateGroupModal || !userId) {
+      return;
+    }
+
+    const loadFriends = async () => {
+      try {
+        console.log('[Modal] Fetching friends...');
+        const res = await fetch('/api/friends', { credentials: 'include' });
+        const data = await res.json();
+        console.log('[Modal] Response status:', res.status);
+        console.log('[Modal] Response data:', data);
+        
+        if (res.ok) {
+          console.log('[Modal] Friends loaded:', data.friends?.length || 0, data.friends);
+          setFriends(Array.isArray(data.friends) ? data.friends : []);
+        } else {
+          console.error('[Modal] Failed to load friends:', data.error);
+          setFriends([]);
+        }
+      } catch (err) {
+        console.error('[Modal] Fetch error:', err);
+        setFriends([]);
+      }
+    };
+
+    loadFriends();
+  }, [showCreateGroupModal, session]);
 
   // Прослушиваем изменения кастомных имён друзей для обновления UI
   useEffect(() => {
@@ -246,7 +339,15 @@ const ChatPage: React.FC = () => {
           </div>
         );
       }
-      // For groups: show up to 3 avatars overlapped like Telegram
+      // For groups: if avatarUrl exists, show it; otherwise show stacked member avatars
+      if (chat.avatarUrl) {
+        return (
+          <div className={styles.chatItemAvatar}>
+            <img src={chat.avatarUrl} alt="group" className={styles.chatItemAvatarImg} />
+          </div>
+        );
+      }
+      // Show up to 3 avatars overlapped like Telegram
       const avatars = (chat.users || []).slice(0, 3).map(u => u.avatar || fallback);
       return (
         <div style={{width:44,height:44,position:'relative'}}>
@@ -264,14 +365,17 @@ const ChatPage: React.FC = () => {
     return (
       <a
         key={chat.id}
-        href={`/chat/${isGroup ? chat.id : chat.users.find(u => u.id !== meId)?.id}`}
+        href={`/chat/${chat.id}`}
         className={styles.chatItem}
       >
         {renderAvatar()}
         <div className={styles.chatItemInfo}>
           <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8}}>
-            <span className={styles.chatItemTitle}>
-              {title || 'Группа'}
+            <span className={styles.chatItemTitle} style={{display: 'flex', alignItems: 'center', gap: 6}}>
+              {isGroup && (
+                <img src="/group-icon.svg" alt="group" style={{width: 16, height: 16, opacity: 0.8, flexShrink: 0}} />
+              )}
+              <span>{title || 'Группа'}</span>
               {role === 'admin' && <img src="/role-icons/admin.svg" alt="admin" className={styles.chatItemTitleIcon} />}
               {role === 'moderator' && <img src="/role-icons/moderator.svg" alt="moderator" className={styles.chatItemTitleIcon} />}
               {role === 'verif' && <img src="/role-icons/verif.svg" alt="verif" className={styles.chatItemTitleIcon} />}
@@ -312,28 +416,22 @@ const ChatPage: React.FC = () => {
     <div className={styles.chatContainer}>
       <div className={styles.chatContent}>
         <div className={styles.chatHeader}>
+          <div style={{width:44}} />
+          <h2 className={styles.headerTitle}>Чаты</h2>
           <button
-            aria-label="Настройки"
-            title="Настройки"
-            onClick={() => setShowSettingsModal(true)}
+            aria-label="Создать группу"
+            title="Создать группу"
+            onClick={() => setShowCreateGroupModal(true)}
             className={styles.headerButton}
           >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="3"></circle>
-              <path d="M19.14 12a6.94 6.94 0 0 0-.11-1.23l2.26-1.76a.5.5 0 0 0 .12-.64l-2.14-3.7a.5.5 0 0 0-.62-.22l-2.66 1.08a6.88 6.88 0 0 0-1.06-.61L14.5 2a.5.5 0 0 0-.5-.5h-4a.5.5 0 0 0-.5.5l-.4 2.86a6.88 6.88 0 0 0-1.06.61l-2.66-1.08a.5.5 0 0 0-.62.22L2.58 8.41a.5.5 0 0 0 .12.64l2.26 1.76a6.94 6.94 0 0 0-.11 1.23 6.94 6.94 0 0 0 .11 1.23l-2.26 1.76a.5.5 0 0 0-.12.64l2.14 3.7a.5.5 0 0 0 .62.22l2.66-1.08a6.88 6.88 0 0 0 1.06.61l.4 2.86a.5.5 0 0 0 .5.5h4a.5.5 0 0 0 .5-.5l.4-2.86a6.88 6.88 0 0 0 1.06-.61l2.66 1.08a.5.5 0 0 0 .62-.22l2.14-3.7a.5.5 0 0 0-.12-.64l-2.26-1.76a6.94 6.94 0 0 0 .11-1.23z"></path>
-            </svg>
+            <img src="/group_create.svg" alt="create group" width="24" height="24" />
           </button>
-          <h2 className={styles.headerTitle}>Чаты</h2>
-          <div style={{width:44}} />
         </div>
         {chats.length === 0 ? (
-          <div className={styles.chatListEmpty}>
-            <div>
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{margin: '0 auto 12px', opacity: 0.5}}>
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-              </svg>
-              <p>Похоже, тут пусто...</p>
-              <p style={{fontSize: '12px', opacity: 0.6}}>Добавьте друга, чтобы начать диалог</p>
+          <div className={styles.chatListEmpty} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: '80px' }}>
+            <div style={{ textAlign: 'center' }}>
+              <LottiePlayer src="/nochats.json" width={200} height={200} />
+              <p style={{ color: '#888', fontSize: '14px', margin: '24px 0 0 0' }}>Еще нет чатов</p>
             </div>
           </div>
         ) : (
@@ -341,7 +439,390 @@ const ChatPage: React.FC = () => {
             {chatList}
           </div>
         )}
-        <SettingsModal open={showSettingsModal} onClose={() => setShowSettingsModal(false)} />
+
+        {/* Create Group Modal */}
+        {showCreateGroupModal && !showMemberSelection && (
+          <div 
+            onClick={() => setShowCreateGroupModal(false)}
+            style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            animation: 'fadeIn 0.3s ease-in-out'
+          }}>
+            <style>{`
+              @keyframes fadeIn {
+                from { background: rgba(0, 0, 0, 0); }
+                to { background: rgba(0, 0, 0, 0.7); }
+              }
+              @keyframes slideUp {
+                from { transform: translateY(20px); opacity: 0; }
+                to { transform: translateY(0); opacity: 1; }
+              }
+            `}</style>
+            <div 
+              onClick={(e) => e.stopPropagation()}
+              style={{
+              background: '#0a0b0d',
+              borderRadius: '12px',
+              border: '1px solid #2a2b31',
+              padding: '30px',
+              maxWidth: '450px',
+              width: '90%',
+              maxHeight: '90vh',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              overflowY: 'auto',
+              animation: 'slideUp 0.3s cubic-bezier(0.23, 1, 0.32, 1)'
+            }}>
+              <div style={{
+                width: '100%',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '24px'
+              }}>
+                <h3 style={{ margin: 0, color: '#fff', fontSize: '18px' }}>Создать группу</h3>
+                <button
+                  onClick={handleCreateGroup}
+                  disabled={creatingGroup || selectedMembers.length < 1}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#3399ff',
+                    cursor: (creatingGroup || selectedMembers.length < 1) ? 'not-allowed' : 'pointer',
+                    padding: '6px 14px',
+                    borderRadius: '6px',
+                    fontSize: '12px',
+                    opacity: (creatingGroup || selectedMembers.length < 1) ? 0.6 : 1
+                  }}
+                >
+                  {creatingGroup ? 'Создание...' : 'Создать'}
+                </button>
+              </div>
+              
+              {/* Group Photo Circle */}
+              <div style={{
+                width: '120px',
+                height: '120px',
+                borderRadius: '50%',
+                background: groupPhoto ? `url(${groupPhoto}) center/cover` : '#191a1e',
+                border: '2px solid #2a2b31',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                marginBottom: '24px',
+                position: 'relative',
+                overflow: 'hidden'
+              }}
+              onClick={() => document.getElementById('groupPhotoInput')?.click()}
+              >
+                {!groupPhoto && (
+                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="1.5">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                    <circle cx="8.5" cy="8.5" r="1.5"/>
+                    <path d="M21 15l-5-5L5 21"/>
+                  </svg>
+                )}
+              </div>
+              
+              <input
+                id="groupPhotoInput"
+                type="file"
+                accept="image/*"
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    setGroupPhotoFile(file);
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                      setGroupPhoto(event.target?.result as string);
+                    };
+                    reader.readAsDataURL(file);
+                  }
+                }}
+              />
+
+              {/* Group Name Input */}
+              <input
+                type="text"
+                placeholder="Название группы"
+                value={groupName}
+                onChange={(e) => setGroupName(e.target.value)}
+                style={{
+                  width: '100%',
+                  background: '#191a1e',
+                  border: '1px solid #2a2b31',
+                  borderRadius: '8px',
+                  color: '#fff',
+                  padding: '10px 12px',
+                  marginBottom: '20px',
+                  fontSize: '14px',
+                  outline: 'none',
+                  boxSizing: 'border-box'
+                }}
+                onFocus={(e) => e.target.style.borderColor = '#3399ff'}
+                onBlur={(e) => e.target.style.borderColor = '#2a2b31'}
+              />
+
+              {/* Add Members Button */}
+              <button
+                onClick={() => setShowMemberSelection(true)}
+                style={{
+                  width: '100%',
+                  background: 'transparent',
+                  border: '1px solid #2a2b31',
+                  borderRadius: '8px',
+                  color: '#3399ff',
+                  padding: '10px 12px',
+                  marginBottom: '16px',
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                  textAlign: 'left'
+                }}
+              >
+                + Добавить участников
+              </button>
+
+              {/* Selected Members Display */}
+              {selectedMembers.length > 0 && (
+                <div style={{
+                  width: '100%',
+                  marginBottom: '20px'
+                }}>
+                  <div style={{ fontSize: '12px', color: '#888', marginBottom: '8px' }}>
+                    Выбранные участники ({selectedMembers.length}):
+                  </div>
+                  <div style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '8px'
+                  }}>
+                    {selectedMembers.map(memberId => {
+                      const member = friends.find(f => f.id === memberId);
+                      return (
+                        <div
+                          key={memberId}
+                          style={{
+                            background: '#191a1e',
+                            border: '1px solid #2a2b31',
+                            borderRadius: '20px',
+                            padding: '6px 12px',
+                            fontSize: '12px',
+                            color: '#fff',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                          }}
+                        >
+                          <span>{member?.link ? `@${member.link}` : member?.login}</span>
+                          <button
+                            onClick={() => setSelectedMembers(selectedMembers.filter(id => id !== memberId))}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: '#888',
+                              cursor: 'pointer',
+                              padding: '0',
+                              fontSize: '16px'
+                            }}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+            </div>
+          </div>
+        )}
+
+        {/* Member Selection Modal */}
+        {showCreateGroupModal && showMemberSelection && (
+          <div 
+            onClick={() => setShowMemberSelection(false)}
+            style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1001
+          }}>
+            <div 
+              onClick={(e) => e.stopPropagation()}
+              style={{
+              background: '#0a0b0d',
+              borderRadius: '12px',
+              border: '1px solid #2a2b31',
+              padding: '20px',
+              maxWidth: '400px',
+              width: '90%',
+              maxHeight: '80vh',
+              display: 'flex',
+              flexDirection: 'column'
+            }}>
+              {/* Header with Save Button */}
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '16px'
+              }}>
+                <h3 style={{ margin: 0, color: '#fff', fontSize: '16px' }}>Выбрать участников</h3>
+                <button
+                  onClick={() => setShowMemberSelection(false)}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#3399ff',
+                    cursor: 'pointer',
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    fontSize: '12px'
+                  }}
+                >
+                  Сохранить
+                </button>
+              </div>
+
+              {/* Search */}
+              <input
+                type="text"
+                placeholder="Поиск по @link"
+                value={memberSearch}
+                onChange={(e) => setMemberSearch(e.target.value)}
+                style={{
+                  background: '#191a1e',
+                  border: '1px solid #2a2b31',
+                  borderRadius: '8px',
+                  color: '#fff',
+                  padding: '8px 12px',
+                  marginBottom: '12px',
+                  fontSize: '14px',
+                  outline: 'none',
+                  boxSizing: 'border-box'
+                }}
+                onFocus={(e) => e.target.style.borderColor = '#3399ff'}
+                onBlur={(e) => e.target.style.borderColor = '#2a2b31'}
+              />
+
+              {/* Debug info */}
+              <div style={{ fontSize: '11px', color: '#666', marginBottom: '8px' }}>
+                Загружено друзей: {friends.length}
+              </div>
+
+              {/* Friends List with Checkboxes */}
+              <div style={{
+                flex: 1,
+                overflowY: 'auto',
+                marginBottom: '0',
+                border: '1px solid #2a2b31',
+                borderRadius: '8px',
+                padding: '8px'
+              }}>
+                {friends
+                  .filter(f => {
+                    const searchTerm = memberSearch.toLowerCase();
+                    const link = f.link ? `@${f.link}` : '';
+                    const login = f.login?.toLowerCase() || '';
+                    return !searchTerm || link.toLowerCase().includes(searchTerm) || login.includes(searchTerm);
+                  })
+                  .length === 0 ? (
+                  <div style={{ color: '#888', fontSize: '13px', padding: '8px' }}>
+                    {memberSearch ? 'Друзей не найдено' : 'Нет доступных друзей'}
+                  </div>
+                ) : (
+                  friends
+                    .filter(f => {
+                      const searchTerm = memberSearch.toLowerCase();
+                      const link = f.link ? `@${f.link}` : '';
+                      const login = f.login?.toLowerCase() || '';
+                      return !searchTerm || link.toLowerCase().includes(searchTerm) || login.includes(searchTerm);
+                    })
+                    .map(friend => (
+                      <label
+                        key={friend.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          padding: '10px',
+                          cursor: 'pointer',
+                          borderRadius: '6px',
+                          userSelect: 'none',
+                          background: selectedMembers.includes(friend.id) ? '#191a1e' : 'transparent',
+                          gap: '10px'
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!selectedMembers.includes(friend.id)) {
+                            e.currentTarget.style.background = '#0f1013';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!selectedMembers.includes(friend.id)) {
+                            e.currentTarget.style.background = 'transparent';
+                          }
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedMembers.includes(friend.id)}
+                          onChange={() => {
+                            if (selectedMembers.includes(friend.id)) {
+                              setSelectedMembers(selectedMembers.filter(id => id !== friend.id));
+                            } else {
+                              setSelectedMembers([...selectedMembers, friend.id]);
+                            }
+                          }}
+                          style={{
+                            marginRight: '0px',
+                            cursor: 'pointer',
+                            width: '18px',
+                            height: '18px',
+                            borderRadius: '50%',
+                            accentColor: '#3399ff',
+                            flexShrink: 0
+                          }}
+                        />
+                        {friend.avatar && (
+                          <img
+                            src={friend.avatar}
+                            alt={friend.link || friend.login}
+                            style={{
+                              width: '32px',
+                              height: '32px',
+                              borderRadius: '50%',
+                              objectFit: 'cover'
+                            }}
+                          />
+                        )}
+                        <span style={{ color: '#fff', fontSize: '13px', flex: 1 }}>
+                          {friend.link ? `@${friend.link}` : friend.login}
+                        </span>
+                      </label>
+                    ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {toast && (
           <ToastNotification

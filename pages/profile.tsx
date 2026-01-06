@@ -1,7 +1,7 @@
 import { getUser } from "../lib/session";
 import { forbiddenPasswords } from "../lib/forbidden-passwords";
 import { getFriendDisplayName } from "../lib/hooks";
-import { FaUserCircle, FaCog, FaShieldAlt, FaPalette, FaLaptop, FaMobileAlt, FaDesktop, FaSignOutAlt, FaQrcode, FaChevronLeft } from "react-icons/fa";
+import { FaUserCircle, FaCog, FaShieldAlt, FaPalette, FaLaptop, FaMobileAlt, FaDesktop, FaSignOutAlt, FaQrcode, FaChevronLeft, FaEllipsisV, FaLightbulb } from "react-icons/fa";
 import styles from "../components/SettingsProfile.module.css";
 import React, { useState, useEffect, useRef } from "react";
 import { motion } from 'framer-motion';
@@ -184,13 +184,16 @@ export default function ProfilePage() {
   const [showNewsModal, setShowNewsModal] = useState(false);
   const [removeFriendId, setRemoveFriendId] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState<boolean>(false);
-  const [settingsTab, setSettingsTab] = useState<'customization'|'security'|'privacy' | null>(null);
+  const [settingsTab, setSettingsTab] = useState<'customization'|'security'|'privacy'|'language' | null>(null);
+  const [currentLanguage, setCurrentLanguage] = useState<'ru' | 'en'>('ru');
+  const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
+  const [deleteAccountAfter, setDeleteAccountAfter] = useState<number>(18);
   // role icon src mapping for modal display
   const roleIconSrc = userRole === 'admin' ? '/role-icons/admin.svg' : userRole === 'moderator' ? '/role-icons/moderator.svg' : userRole === 'verif' ? '/role-icons/verif.svg' : userRole === 'pepe' ? '/role-icons/pepe.svg' : null;
   // menu indicator animation settings
   const menuButtonHeight = 44; // px
   const menuButtonGap = 8; // px
-  const menuIndex = settingsTab === 'customization' ? 0 : settingsTab === 'security' ? 1 : settingsTab === 'privacy' ? 2 : -1;
+  const menuIndex = settingsTab === 'customization' ? 0 : settingsTab === 'security' ? 1 : settingsTab === 'privacy' ? 2 : settingsTab === 'language' ? 3 : -1;
   // offset indicator by container padding (6px) so it aligns exactly behind buttons
   const menuIndicatorTop = menuIndex >= 0 ? (6 + menuIndex * (menuButtonHeight + menuButtonGap)) : -9999;
   const [token, setToken] = useState<string>("");
@@ -211,12 +214,16 @@ export default function ProfilePage() {
   const [toastType, setToastType] = useState<'success'|'error'>('success');
   const [friends, setFriends] = useState<any[]>([]);
   const [sessions, setSessions] = useState<any[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState<boolean>(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [newLogin, setNewLogin] = useState<string>("");
   const [newLink, setNewLink] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
+  const [loginNotificationShown, setLoginNotificationShown] = useState<boolean>(false);
+  
   const currentSessionId = session && session.user ? (session.user as any).sessionId : null;
   const [prefersReduced, setPrefersReduced] = useState<boolean>(true);
+  
   useEffect(() => {
     if (typeof window !== 'undefined' && window.matchMedia) {
       try {
@@ -278,6 +285,29 @@ export default function ProfilePage() {
         setSessions([]);
       });
   }, [session, status]);
+
+  // Notify about login from new device
+  useEffect(() => {
+    if (!session?.user?.id || loginNotificationShown) return;
+    
+    fetch('/api/notify-login', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.isNewDevice) {
+          setToastMsg(`Вы вошли с нового устройства: ${data.sessionInfo?.browser || 'Unknown'} на ${data.sessionInfo?.os || 'Unknown'}`);
+          setToastType('success');
+          setShowToast(true);
+        }
+        setLoginNotificationShown(true);
+      })
+      .catch(() => {
+        setLoginNotificationShown(true);
+      });
+  }, [session?.user?.id, loginNotificationShown]);
 
   // Прослушиваем изменения кастомных имён друзей для обновления UI
   useEffect(() => {
@@ -432,8 +462,51 @@ export default function ProfilePage() {
       setRemoveFriendId(null);
     }
   };
-  
 
+  // Create new access key - removed (functionality moved to WebAuthn)
+
+  const loadSessions = async () => {
+    try {
+      setSessionsLoading(true);
+      const res = await fetch('/api/sessions/list', {
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSessions(data.sessions || []);
+      }
+    } catch (error) {
+      console.error('Error loading sessions:', error);
+    } finally {
+      setSessionsLoading(false);
+    }
+  };
+
+  const handleTerminateSession = async (sessionId: string) => {
+    if (!confirm('Завершить эту сессию?')) return;
+    try {
+      const res = await fetch(`/api/sessions/delete?sessionId=${sessionId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (res.ok) {
+        setOpenMenuId(null);
+        setSessions(prev => prev.filter((s: any) => s.id !== sessionId));
+        setToastMsg('Сессия завершена');
+        setToastType('success');
+        setShowToast(true);
+      } else {
+        setToastMsg('Ошибка при завершении сессии');
+        setToastType('error');
+        setShowToast(true);
+      }
+    } catch (error) {
+      console.error('Error terminating session:', error);
+      setToastMsg('Ошибка сети');
+      setToastType('error');
+      setShowToast(true);
+    }
+  };
 
     if (status === "loading" || !session || !session.user || !session.user.id || !user) {
     return <div style={{color:'#bbb',textAlign:'center',marginTop:80,fontSize:22}}></div>;
@@ -738,55 +811,135 @@ export default function ProfilePage() {
       </div>
   {/* Сессии */}
   <div style={{ flex: 1, background: "rgba(35,36,42,0.16)", borderRadius: 14, padding: 16, boxShadow: "0 1px 8px #0003" }}>
-        <div style={{ fontSize: 17, fontWeight: 600, marginBottom: 10 }}>Сессии</div>
+        <div style={{ fontSize: 17, fontWeight: 600, marginBottom: 10 }}>Активные сессии</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {sessions && sessions.length > 0 ? sessions.map((s: any) => {
-            const isCurrent = s.id === currentSessionId;
+            const isCurrent = s.isCurrent;
             return (
-            <div key={s.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(0,0,0,0.05)', padding: 10, borderRadius: 10, position: 'relative' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 8 }}>
-                  {React.cloneElement(getDeviceIconAndName(s.deviceName) as any, { style: { fontSize: 18, color: '#fff' } })}
+            <div 
+              key={s.id} 
+              style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'space-between',
+                background: 'rgba(35,36,42,0.10)', 
+                padding: '12px 16px', 
+                borderRadius: 14, 
+                border: '1px solid rgba(255,255,255,0.02)',
+                transition: 'all 0.18s ease',
+                cursor: 'default',
+                boxShadow: 'none'
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.background = 'rgba(35,36,42,0.18)';
+                e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.25)';
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.background = 'rgba(35,36,42,0.10)';
+                e.currentTarget.style.boxShadow = 'none';
+              }}
+            >
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28 }}>
+                  {s.deviceType === 'mobile' && <FaMobileAlt style={{ color: '#fff', fontSize: 14 }} />}
+                  {s.deviceType === 'tablet' && <FaLaptop style={{ color: '#fff', fontSize: 14 }} />}
+                  {(s.deviceType === 'desktop' || !s.deviceType) && <FaDesktop style={{ color: '#fff', fontSize: 14 }} />}
                 </div>
-                <div>
-                  <div style={{ color: '#fff', fontWeight: 600 }}>{(s.deviceName || 'Неизвестное устройство').length > 26 ? (s.deviceName || 'Неизвестное устройство').substring(0, 26) + '...' : (s.deviceName || 'Неизвестное устройство')} {isCurrent ? <span style={{ display:'inline-block', marginLeft:8, padding:'2px 8px', background:'#1ed760', color:'#022', borderRadius:12, fontSize:12, fontWeight:700 }}>Это вы</span> : null}</div>
-                  <div style={{ color: '#bbb', fontSize: 13 }}>{s.ip === '::1' ? 'Неизвестный IP' : (s.ip || 'IP неизвестен')}</div>
-                  <div style={{ color: '#999', fontSize: 12, marginTop: 4 }}>{new Date(s.createdAt).toLocaleString()}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                    <div style={{ color: '#fff', fontWeight: 600, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {s.browser || 'Browser'} • {s.os || 'OS'}
+                    </div>
+                    {isCurrent && (
+                      <span style={{ display:'inline-block', padding:'2px 7px', background:'rgba(100,181,246,0.12)', color:'#64b5f6', borderRadius:5, fontSize:10, fontWeight:500, flexShrink: 0 }}>
+                        Это вы
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ color: '#888', fontSize: 12 }}>
+                    {(s.ip === '::1' || s.ip === '127.0.0.1') ? 'IP Скрыт' : (s.ip || 'IP не доступен')} • {new Date(s.lastActivityAt || s.createdAt).toLocaleDateString('ru-RU', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  </div>
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <div style={{ position: 'relative' }}>
-                  <button onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === s.id ? null : s.id); }} aria-label="Меню сессии" style={{ width: 34, height: 34, borderRadius: 8, border: 'none', background: 'transparent', color: '#fff', cursor: 'pointer' }}>⋯</button>
-                  {openMenuId === s.id && (
-                    <div style={{ position: 'absolute', right: 8, top: 44, background: '#23242a', border: '1px solid #333', borderRadius: 10, padding: 8, zIndex: 60, boxShadow: '0 4px 16px #0008' }}>
-                      <button onClick={async () => {
-                        if (!user) return;
-                        if (!confirm('Завершить эту сессию?')) return;
-                        try {
-                          const resp = await fetch('/api/session-end', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user.id, sessionId: s.id }) });
-                              if (resp.ok) {
-                            setOpenMenuId(null);
-                            // Optimistically remove session from local UI
-                            setSessions(prev => prev.filter((ss: any) => ss.id !== s.id));
-                            setToastMsg('Сессия завершена'); setToastType('success'); setShowToast(true);
-                            // If user ended the current session, sign them out (same as logout)
-                            if (isCurrent) {
-                              // small delay to allow UI update
-                              setTimeout(() => signOut({ callbackUrl: `${window.location.origin}/` }), 300);
-                              return;
-                            }
-                          } else {
-                            alert('Не удалось завершить сессию');
-                          }
-                        } catch (e) { alert('Ошибка'); }
-                      }} style={{ background: 'transparent', color: '#64b5f6', border: 'none', padding: '6px 10px', cursor: 'pointer', fontWeight: 600 }}>Завершить</button>
-                    </div>
-                  )}
+              <div style={{ position: 'relative', marginLeft: 8 }}>
+                <button
+                  onClick={(e) => {
+                    const menu = e.currentTarget.nextElementSibling as HTMLElement;
+                    menu?.classList.toggle('show');
+                  }}
+                  title="Меню"
+                  style={{
+                    border: 'none',
+                    background: 'none',
+                    color: '#666',
+                    cursor: 'pointer',
+                    fontSize: 16,
+                    transition: 'color 0.15s ease',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '4px 6px',
+                    borderRadius: 4,
+                    opacity: 0.5,
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.opacity = '0.8';
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.opacity = '0.5';
+                  }}
+                >
+                  ×
+                </button>
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 4px)',
+                    right: 0,
+                    background: 'rgba(25,27,33,0.94)',
+                    borderRadius: 8,
+                    border: '1px solid rgba(255,255,255,0.08)',
+                    minWidth: 140,
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                    zIndex: 10,
+                    display: 'none',
+                    overflow: 'hidden',
+                    backdropFilter: 'blur(4px)',
+                  }}
+                >
+                  <button
+                    onClick={(e) => {
+                      handleTerminateSession(s.id);
+                      (e.currentTarget.parentElement as HTMLElement)?.classList.remove('show');
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      border: 'none',
+                      background: 'transparent',
+                      color: '#d1d7db',
+                      cursor: 'pointer',
+                      fontSize: 12,
+                      textAlign: 'left',
+                      transition: 'all 0.1s ease',
+                      fontWeight: 400,
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.background = 'rgba(231, 76, 60, 0.1)';
+                      e.currentTarget.style.color = '#e74c3c';
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.background = 'transparent';
+                      e.currentTarget.style.color = '#d1d7db';
+                    }}
+                  >
+                    Завершить
+                  </button>
                 </div>
               </div>
             </div>
           )}) : (
-            <div style={{ color: '#bbb' }}>Активных сессий не найдено.</div>
+            <div style={{ color: '#bbb', fontSize: 16 }}>Нет активных сессий</div>
           )}
         </div>
       </div>
@@ -880,6 +1033,18 @@ export default function ProfilePage() {
                         <span>Конфиденциальность</span>
                       </div>
                     </button>
+                    <button
+                      className={styles.menuButton}
+                      onClick={() => setSettingsTab('language')}
+                    >
+                      <div className={styles.menuButtonContent}>
+                        <div className={styles.menuButtonIcon} style={{ background: 'rgba(255, 140, 0, 0.3)' }}>
+                          <span style={{ fontSize: '18px', color: '#ff8c00' }}>言</span>
+                        </div>
+                        <span>Язык</span>
+                        <span style={{ fontSize: '12px', color: '#8a8e99', marginLeft: 'auto', marginRight: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>{currentLanguage === 'ru' ? 'RU' : 'EN'}<span style={{ fontSize: '10px' }}>˅</span></span>
+                      </div>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -888,33 +1053,45 @@ export default function ProfilePage() {
             {/* Content Screens */}
             {settingsTab && (
               <div className={styles.contentScreen}>
-                <button
-                  className={styles.backButtonTop}
-                  onClick={() => setSettingsTab(null)}
-                  title="Назад"
-                >
-                  <FaChevronLeft size={20} />
-                </button>
-
                 <div className={styles.contentHeader}>
-                  {settingsTab === 'customization' && (
-                    <>
-                      <FaPalette className={styles.contentHeaderIcon} />
-                      <span className={styles.contentHeaderTitle}>Оформление профиля</span>
-                    </>
-                  )}
-                  {settingsTab === 'security' && (
-                    <>
-                      <FaShieldAlt className={styles.contentHeaderIcon} />
-                      <span className={styles.contentHeaderTitle}>Безопасность</span>
-                    </>
-                  )}
-                  {settingsTab === 'privacy' && (
-                    <>
-                      <FaUserCircle className={styles.contentHeaderIcon} />
-                      <span className={styles.contentHeaderTitle}>Конфиденциальность</span>
-                    </>
-                  )}
+                  <div className={styles.contentHeaderLeft}>
+                    <button
+                      className={styles.headerButton}
+                      onClick={() => setSettingsTab(null)}
+                      title="Назад в меню"
+                    >
+                      <FaChevronLeft size={18} />
+                    </button>
+                    {settingsTab === 'customization' && (
+                      <>
+                        <span className={styles.contentHeaderTitle}>Оформление профиля</span>
+                      </>
+                    )}
+                    {settingsTab === 'security' && (
+                      <>
+                        <span className={styles.contentHeaderTitle}>Безопасность</span>
+                      </>
+                    )}
+                    {settingsTab === 'privacy' && (
+                      <>
+                        <span className={styles.contentHeaderTitle}>Конфиденциальность</span>
+                      </>
+                    )}
+                    {settingsTab === 'language' && (
+                      <>
+                        <span className={styles.contentHeaderTitle}>Язык</span>
+                      </>
+                    )}
+                  </div>
+                  <div className={styles.contentHeaderRight}>
+                    <button
+                      className={styles.headerButton}
+                      onClick={() => setShowSettings(false)}
+                      title="Закрыть"
+                    >
+                      ✕
+                    </button>
+                  </div>
                 </div>
 
                 <div className={styles.contentBody}>
@@ -923,7 +1100,7 @@ export default function ProfilePage() {
                     <>
                     {/* Change login section */}
                     <div className={styles.section}>
-                      <span className={styles.sectionTitle}>Смена логина</span>
+                      <span className={styles.sectionTitle}>Новый логин</span>
                       <div className={styles.card}>
                         <label className={styles.cardLabel}>Новый логин</label>
                         <div className={styles.inputGroup}>
@@ -1162,7 +1339,6 @@ export default function ProfilePage() {
                   {/* Security */}
                   {settingsTab === 'security' && (
                     <>
-                    <div className={styles.contentBody}>
                     {/* Password section */}
                     <div className={styles.section}>
                       <span className={styles.sectionTitle}>Пароль</span>
@@ -1325,14 +1501,13 @@ export default function ProfilePage() {
                         </div>
                       </div>
                     </div>
-                    </div>
                     </>
                   )}
 
                   {/* Privacy */}
                   {settingsTab === 'privacy' && (
                     <>
-                    <div className={styles.contentBody}>
+                    {/* Status section */}
                     <div className={styles.section}>
                       <span className={styles.sectionTitle}>Выберите статус</span>
                       <div className={styles.card}>
@@ -1409,6 +1584,53 @@ export default function ProfilePage() {
                             </>
                           )}
                         </div>
+                      </div>
+                    </div>
+
+                    {/* Delete Account Setting */}
+                    <div className={styles.section}>
+                      <span className={styles.sectionTitle}>Удаление аккаунта</span>
+                      <div className={styles.card}>
+                        <label className={styles.cardLabel}>При неактивности...</label>
+                        <div style={{ marginBottom: 12 }}>
+                          <input
+                            type="range"
+                            min="1"
+                            max="18"
+                            value={deleteAccountAfter}
+                            onChange={(e) => setDeleteAccountAfter(Number(e.target.value))}
+                            className={styles.cardInput}
+                            style={{ marginTop: 6 }}
+                          />
+                        </div>
+                        <div style={{ fontSize: 14, color: '#9e9e9e', textAlign: 'center', marginBottom: 12 }}>
+                          <strong style={{ color: '#fff' }}>{deleteAccountAfter} месяцев</strong>
+                        </div>
+                        <div style={{ fontSize: 13, color: '#9e9e9e', lineHeight: '1.4' }}>
+                          Аккаунт будет удалён автоматически, если вы не будете активны в течение {deleteAccountAfter} месяца неактивности.
+                        </div>
+                      </div>
+                    </div>
+                    </>
+                  )}
+
+                  {/* Language */}
+                  {settingsTab === 'language' && (
+                    <>
+                    <div className={styles.contentBody}>
+                    <div className={styles.section}>
+                      <span className={styles.sectionTitle}>Язык интерфейса</span>
+                      <div className={styles.card}>
+                        <label className={styles.cardLabel}>Выберите язык</label>
+                        <select
+                          className={styles.cardInput}
+                          style={{ cursor: 'pointer', appearance: 'none', paddingRight: '32px' }}
+                          value={currentLanguage}
+                          onChange={(e) => setCurrentLanguage(e.target.value as 'ru' | 'en')}
+                        >
+                          <option value="ru">RU Русский</option>
+                          <option value="en">US English</option>
+                        </select>
                       </div>
                     </div>
                     </div>

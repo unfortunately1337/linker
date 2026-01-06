@@ -223,15 +223,29 @@ export default function Sidebar() {
     };
   }, []);
 
-  const logout = () => {
+  const logout = async () => {
     // Clear local cache and perform a full sign out via NextAuth.
     try { clearUser(); } catch (e) {}
     setUser(null);
     setOpen(false);
-    // trigger NextAuth signOut which will redirect to auth/login
+    
+    // First, terminate all sessions on the server
+    try {
+      const res = await fetch('/api/sessions/terminate-all', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const data = await res.json();
+      console.log('All sessions terminated:', data);
+    } catch (e) {
+      console.error('Error terminating sessions:', e);
+    }
+    
+    // Then trigger NextAuth signOut which will also end sessions via callback
     try {
       signOut({ callbackUrl: "/auth/login" as any });
     } catch (e) {
+      console.error('Error during signOut:', e);
       // fallback: router push
       router.push("/auth/login");
     }

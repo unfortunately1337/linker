@@ -19,40 +19,49 @@ model ChatUnread {
 }
 
 model Session {
-  id         String   @id @default(uuid())
-  userId     String
-  deviceName String
-  ip         String?
-  isActive   Boolean  @default(true)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  user       User     @relation("UserSessions", fields: [userId], references: [id], onDelete: Cascade)
+  id             String   @id @default(uuid())
+  userId         String
+  deviceName     String
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  browser        String?
+  deviceType     String?
+  ip             String?
+  isCurrent      Boolean  @default(false)
+  lastActivityAt DateTime @default(now())
+  os             String?
+  updatedAt      DateTime @updatedAt
+  userAgent      String?
+  user           User     @relation("UserSessions", fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model User {
-  id             String       @id @default(uuid())
-  password       String
-  createdAt      DateTime     @default(now())
-  login          String       @unique
-  link     String?  @unique
-  avatar         String?
-  description    String?
-  twoFactorSecret String?
-  twoFactorEnabled Boolean @default(false)
-  role           String       @default("user")
-  backgroundUrl  String?
-  status         String?
-  firstLoginDone Boolean      @default(false)
-  chatUnreads    ChatUnread[]
-  friends        Friend[]     @relation("UserFriends")
-  sentMessages   Message[]    @relation("UserSentMessages")
-  reactions      Reaction[]   @relation("UserReactions")
-  sessions       Session[]    @relation("UserSessions")
-  chats          Chat[]       @relation("ChatUsers")
-  callsMade      Call[]       @relation("CallCaller")
-  callsReceived  Call[]       @relation("CallCallee")
-  posts          Post[]
-  likes          Like[]
+  id               String        @id @default(uuid())
+  password         String
+  createdAt        DateTime      @default(now())
+  login            String        @unique
+  avatar           String?
+  description      String?
+  role             String        @default("user")
+  backgroundUrl    String?
+  twoFactorEnabled Boolean       @default(false)
+  twoFactorSecret  String?
+  status           String?
+  link             String?       @unique
+  firstLoginDone   Boolean       @default(false)
+  accessKeys       AccessKey[]
+  blocksByUsers    BlockedUser[] @relation("BlocksByUsers")
+  blockedUsers     BlockedUser[] @relation("BlockedUsers")
+  callsReceived    Call[]        @relation("CallCallee")
+  callsMade        Call[]        @relation("CallCaller")
+  chatUnreads      ChatUnread[]
+  friends          Friend[]      @relation("UserFriends")
+  likes            Like[]
+  sentMessages     Message[]     @relation("UserSentMessages")
+  posts            Post[]
+  reactions        Reaction[]    @relation("UserReactions")
+  sessions         Session[]     @relation("UserSessions")
+  chats            Chat[]        @relation("ChatUsers")
 }
 
 model Friend {
@@ -60,6 +69,19 @@ model Friend {
   userId   String
   friendId String
   user     User   @relation("UserFriends", fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model BlockedUser {
+  id        String   @id @default(uuid())
+  blockerId String
+  blockedId String
+  createdAt DateTime @default(now())
+  blocked   User     @relation("BlocksByUsers", fields: [blockedId], references: [id], onDelete: Cascade)
+  blocker   User     @relation("BlockedUsers", fields: [blockerId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+  @@index([blockerId])
+  @@index([blockedId])
 }
 
 model FriendRequest {
@@ -70,30 +92,32 @@ model FriendRequest {
 }
 
 model Chat {
-  id          String       @id @default(uuid())
-  name        String?
-  createdAt   DateTime     @default(now())
-  chatUnreads ChatUnread[]
-  messages    Message[]
-  users       User[]       @relation("ChatUsers")
+  id             String       @id @default(uuid())
+  name           String?
+  createdAt      DateTime     @default(now())
+  avatarUrl      String?
+  backgroundUrl  String?
+  chatUnreads    ChatUnread[]
+  messages       Message[]
+  users          User[]       @relation("ChatUsers")
 }
 
 model Message {
-  id        String   @id @default(uuid())
-  chatId    String
-  senderId  String
-  text      String
-  createdAt DateTime @default(now())
-  audioUrl  String?
-  videoUrl  String?
+  id          String     @id @default(uuid())
+  chatId      String
+  senderId    String
+  text        String
+  createdAt   DateTime   @default(now())
+  audioUrl    String?
+  videoUrl    String?
   audioBase64 String?
   audioMime   String?
   videoBase64 String?
   videoMime   String?
-  status    String   @default("sent")
-  chat      Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
-  sender    User     @relation("UserSentMessages", fields: [senderId], references: [id], onDelete: Cascade)
-  reactions Reaction[]
+  status      String     @default("sent")
+  chat        Chat       @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  sender      User       @relation("UserSentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  reactions   Reaction[]
 }
 
 model Reaction {
@@ -109,64 +133,85 @@ model Reaction {
 }
 
 model Call {
-  id        String   @id @default(uuid())
+  id        String    @id @default(uuid())
   callerId  String
   calleeId  String
-  type      String   @default("phone")
-  status    String   @default("calling")
+  type      String    @default("phone")
+  status    String    @default("calling")
   startedAt DateTime?
   endedAt   DateTime?
-  createdAt DateTime @default(now())
-  caller    User     @relation("CallCaller", fields: [callerId], references: [id], onDelete: Cascade)
-  callee    User     @relation("CallCallee", fields: [calleeId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+  callee    User      @relation("CallCallee", fields: [calleeId], references: [id], onDelete: Cascade)
+  caller    User      @relation("CallCaller", fields: [callerId], references: [id], onDelete: Cascade)
 }
 
-// Media stored in DB (Bytes) for now. We keep provider/key to migrate to S3 later.
 model Media {
   id        String   @id @default(uuid())
-  ownerId   String? 
-  data      Bytes?   // binary image data (optimized, e.g. webp)
+  ownerId   String?
+  data      Bytes?
   mime      String?
   size      Int?
   width     Int?
   height    Int?
   provider  String   @default("db")
-  key       String?  // external key if provider != 'db'
+  key       String?
   createdAt DateTime @default(now())
   posts     Post[]
 }
 
 model Post {
-  id        String   @id @default(uuid())
-  authorId  String
-  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  title     String?  // post title
-  description String? // short description
-  content   String?  // text content (full)
-  mediaId   String?
-  media     Media?   @relation(fields: [mediaId], references: [id], onDelete: SetNull)
-  // Optional inline image storage for simplified DB-only mode
-  imageData Bytes?
-  imageMime String?
-  imageSize Int?
-  imageWidth Int?
+  id          String   @id @default(uuid())
+  authorId    String
+  title       String?
+  description String?
+  content     String?
+  mediaId     String?
+  createdAt   DateTime @default(now())
+  imageData   Bytes?
   imageHeight Int?
-  // backwards-compatible alias for photo storage; also used by new features
-  photo Bytes?
-  likes     Like[]
-  likesCount String  @default("0")
-  views     String   @default("0")
-  createdAt DateTime @default(now())
+  imageMime   String?
+  imageSize   Int?
+  imageWidth  Int?
+  photo       Bytes?
+  likesCount  String   @default("0")
+  views       String   @default("0")
+  likes       Like[]
+  author      User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  media       Media?   @relation(fields: [mediaId], references: [id])
 }
 
 model Like {
-  id      String @id @default(uuid())
-  postId  String
-  userId  String
+  id        String   @id @default(uuid())
+  postId    String
+  userId    String
   createdAt DateTime @default(now())
-
-  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([postId, userId])
+}
+
+model AccessKey {
+  id                  String    @id @default(uuid())
+  userId              String
+  name                String
+  code                String    @unique
+  pin                 String
+  createdAt           DateTime  @default(now())
+  lastUsedAt          DateTime?
+  counter             Int       @default(0)
+  credentialId        String?   @unique
+  credentialPublicKey String?
+  transports          String?
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model WebAuthnChallenge {
+  id        String   @id @default(uuid())
+  login     String
+  challenge String
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@index([login])
 }

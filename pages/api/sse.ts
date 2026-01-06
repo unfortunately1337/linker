@@ -41,7 +41,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     await registerSSEConnection(res, connectionId, userId, chatId as string | undefined);
 
     console.log(`[SSE-ENDPOINT] ✅ Connection registered: ${connectionId} for user ${userId}${chatId ? ` chat ${chatId}` : ''}`);
-
+    console.log('[SSE-ENDPOINT] Response state: writable=' + res.writable + ', writableEnded=' + res.writableEnded);
+    
     // Keep the response open indefinitely
     res.on('close', () => {
       console.log('[SSE-ENDPOINT] Connection closed:', connectionId);
@@ -54,6 +55,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
   } catch (err) {
     console.error('[SSE-ENDPOINT] ❌ Connection error:', err);
-    return res.status(500).json({ error: 'Internal server error', details: String(err) });
+    if (!res.writableEnded) {
+      return res.status(500).json({ error: 'Internal server error', details: String(err) });
+    }
   }
 }

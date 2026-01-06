@@ -22,6 +22,10 @@ class SSEClient {
   private reconnectDelay = 1000;
   private messageQueue: Array<{ event: string; data: any }> = [];
   private pendingListeners: Array<{ eventType: string; callback: RealtimeEventListener }> = [];
+  private eventListenerMap: Map<string, EventListener> = new Map();
+  private connectionTimeout: NodeJS.Timeout | null = null;
+  private lostEvents: Array<{ type: string; timestamp: number }> = [];
+  private maxLostEventsHistory = 100;
 
   constructor() {}
 
@@ -42,16 +46,59 @@ class SSEClient {
       if (chatId) params.append('chatId', chatId);
 
       const url = `/api/sse?${params.toString()}`;
+      const connectStartTime = Date.now();
       console.log(`[SSE-CLIENT] 🔌 Connecting to ${url}`);
+
+      let fallbackTimer: NodeJS.Timeout | null = null;
+      // Set connection timeout (30 seconds) - increased from 10s for slower networks
+      this.connectionTimeout = setTimeout(() => {
+        console.error('[SSE-CLIENT] ❌ Connection timeout after 30s');
+        console.error(`[SSE-CLIENT] Failed to connect to ${url}`);
+        if (fallbackTimer) clearTimeout(fallbackTimer);
+        if (this.eventSource) {
+          try {
+            this.eventSource.close();
+          } catch (e) {
+            console.error('[SSE-CLIENT] Error closing EventSource on timeout:', e);
+          }
+          this.eventSource = null;
+        }
+        reject(new Error('SSE connection timeout after 30s - check if /api/sse endpoint is responding'));
+      }, 30000);
 
       try {
         this.eventSource = new EventSource(url);
+        console.log('[SSE-CLIENT] EventSource created, awaiting connection...');
+
+        // Handle open (when connection is established)
+        this.eventSource.onopen = () => {
+          console.log('[SSE-CLIENT] ℹ️ EventSource opened, readyState:', this.eventSource?.readyState);
+        };
+
+        // Fallback: if readyState becomes OPEN (1) and we haven't connected in 5s, resolve anyway
+        fallbackTimer = setTimeout(() => {
+          if (this.eventSource?.readyState === 1 && this.connectionTimeout) {
+            console.log('[SSE-CLIENT] ⚠️  Fallback: readyState is OPEN but "connected" event did not arrive within 5s. Resolving anyway...');
+            clearTimeout(this.connectionTimeout);
+            this.connectionTimeout = null;
+            resolve();
+          }
+        }, 5000);
 
         // Handle connection
         this.eventSource.addEventListener('connected', (event: any) => {
           try {
+            console.log('[SSE-CLIENT] 📨 Received "connected" event, event.data:', event.data);
+            // Clear fallback timer
+            if (fallbackTimer) clearTimeout(fallbackTimer);
+            // Clear connection timeout on successful connection
+            if (this.connectionTimeout) {
+              clearTimeout(this.connectionTimeout);
+              this.connectionTimeout = null;
+            }
+            const connectTime = Date.now() - connectStartTime;
             const data = JSON.parse(event.data);
-            console.log('[SSE-CLIENT] ✅ Connected:', data);
+            console.log(`[SSE-CLIENT] ✅ Connected (${connectTime}ms):`, data);
             this.reconnectAttempts = 0;
             
             // Process any pending listeners that were queued before connection
@@ -77,8 +124,18 @@ class SSEClient {
 
         // Handle error
         this.eventSource.addEventListener('error', (e: any) => {
-          console.error('[SSE-CLIENT] ❌ EventSource error:', e);
-          this.handleDisconnect();
+          console.error('[SSE-CLIENT] ❌ EventSource error event fired:', {
+            readyState: this.eventSource?.readyState,
+            message: e?.message,
+            url,
+            type: e?.type
+          });
+          if (fallbackTimer) clearTimeout(fallbackTimer);
+          // EventSource.CLOSED = 2
+          if (this.eventSource?.readyState === 2) {
+            console.error('[SSE-CLIENT] Connection closed (readyState=2). Check if /api/sse endpoint is working');
+            this.handleDisconnect();
+          }
         });
 
         // Generic event handler - listen to all event types
@@ -134,11 +191,15 @@ class SSEClient {
         };
 
         this.eventSource.onerror = () => {
-          console.error('[SSE] Connection error');
+          console.error('[SSE-CLIENT] ❌ Connection error via onerror handler');
           this.handleDisconnect();
         };
       } catch (err) {
-        console.error('[SSE] Connection failed:', err);
+        console.error('[SSE-CLIENT] ❌ Failed to create EventSource:', err, 'url:', url);
+        if (this.connectionTimeout) {
+          clearTimeout(this.connectionTimeout);
+          this.connectionTimeout = null;
+        }
         reject(err);
       }
     });
@@ -192,7 +253,7 @@ class SSEClient {
           }
           
           const listeners = channelInfo.listeners.get(targetEvent);
-          if (listeners) {
+          if (listeners && listeners.size > 0) {
             listeners.forEach((listener) => {
               try {
                 listener(data);
@@ -200,6 +261,10 @@ class SSEClient {
                 console.error(`[SSE] Error in listener for ${targetEvent}:`, err);
               }
             });
+          } else {
+            // Log lost event if no listeners
+            console.warn(`[SSE-CLIENT] ⚠️ No listeners for event: ${targetEvent} on channel ${channel}. Event lost!`);
+            this.recordLostEvent(eventType);
           }
         }
       }
@@ -291,15 +356,62 @@ class SSEClient {
   }
 
   /**
+   * Record lost event for monitoring
+   */
+  private recordLostEvent(eventType: string): void {
+    this.lostEvents.push({ type: eventType, timestamp: Date.now() });
+    if (this.lostEvents.length > this.maxLostEventsHistory) {
+      this.lostEvents.shift();
+    }
+  }
+
+  /**
+   * Get lost events history
+   */
+  getLostEvents(): Array<{ type: string; timestamp: number }> {
+    return [...this.lostEvents];
+  }
+
+  /**
    * Disconnect SSE
    */
   disconnect(): void {
+    // Clear connection timeout if pending
+    if (this.connectionTimeout) {
+      clearTimeout(this.connectionTimeout);
+      this.connectionTimeout = null;
+    }
+
     if (this.eventSource) {
-      this.eventSource.close();
+      // Remove all event listeners to prevent memory leaks
+      console.log('[SSE-CLIENT] 🧹 Cleaning up event listeners...');
+      this.eventListenerMap.forEach((listener, eventType) => {
+        try {
+          this.eventSource?.removeEventListener(eventType, listener);
+        } catch (err) {
+          console.error(`[SSE-CLIENT] Error removing listener for ${eventType}:`, err);
+        }
+      });
+      this.eventListenerMap.clear();
+
+      try {
+        this.eventSource.close();
+      } catch (err) {
+        console.error('[SSE-CLIENT] Error closing EventSource:', err);
+      }
       this.eventSource = null;
     }
+
+    // Clear all channel listeners
+    this.channels.forEach((channelInfo) => {
+      channelInfo.listeners.clear();
+    });
     this.channels.clear();
-    console.log('[SSE] Disconnected');
+
+    // Clear pending listeners
+    this.pendingListeners = [];
+
+    console.log('[SSE-CLIENT] ✅ Disconnected and cleaned up');
   }
 
   /**

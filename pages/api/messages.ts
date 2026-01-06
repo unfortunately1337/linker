@@ -51,7 +51,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const msgs = await prisma.message.findMany({ 
         where, 
         orderBy: { createdAt: 'desc' }, 
-        take: limit
+        take: limit,
+        select: {
+          id: true,
+          chatId: true,
+          senderId: true,
+          text: true,
+          createdAt: true,
+          status: true,
+          audioUrl: true,
+          videoUrl: true,
+          sender: {
+            select: {
+              id: true,
+              login: true,
+              link: true,
+              avatar: true
+            }
+          }
+        }
       });
       const messages = msgs.reverse();
 
@@ -113,7 +131,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // Attach reactions to messages
       const messagesWithReactions = decryptedMessages.map((msg: any) => ({
         ...msg,
-        reactions: reactionsMap[msg.id] || []
+        reactions: reactionsMap[msg.id] || [],
+        senderInfo: msg.sender ? {
+          id: msg.sender.id,
+          login: msg.sender.login,
+          link: msg.sender.link,
+          avatar: msg.sender.avatar
+        } : undefined
       }));
 
       // hasMore -> true when we returned 'limit' items (there may be more older messages)
@@ -174,6 +198,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(403).json({ error: 'Forbidden' });
       }
 
+      // Check if this is a 1:1 chat and if the user is blocked
+      if ((chat.users?.length || 0) === 2) {
+        const recipient = chat.users?.find((u: any) => String(u.id) !== String(user.id));
+        if (recipient) {
+          const isBlocked = await prisma.blockedUser.findUnique({
+            where: {
+              blockerId_blockedId: {
+                blockerId: recipient.id,
+                blockedId: user.id
+              }
+            }
+          });
+          if (isBlocked) {
+            console.warn('[MESSAGES API][POST] user is blocked by recipient', { userId: user.id, recipientId: recipient.id });
+            return res.status(403).json({ error: 'You are blocked by this user' });
+          }
+        }
+      }
+
       // Шифруем сообщение (защищаем шифрование отдельным try)
       let encryptedText: string;
       try {
@@ -193,10 +236,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         id: message.id,
         chatId: message.chatId,
         senderId: message.senderId,
+        sender: message.senderId,
         createdAt: message.createdAt,
         status: message.status,
         audioUrl: (message as any).audioUrl || null,
         videoUrl: (message as any).videoUrl || null,
+        senderInfo: {
+          id: user.id,
+          login: user.login,
+          link: (user as any).link || null,
+          avatar: user.avatar || null
+        }
       } as any;
 
       // Параллельно - обновления и Pusher

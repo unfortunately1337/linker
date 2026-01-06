@@ -416,7 +416,58 @@ export default function UserProfile() {
               <div style={{ fontSize: 13, color: '#64b5f6', fontWeight: 500 }}></div>
               <div className="profile-action-group" style={{ width: '100%', flexWrap: 'wrap' }}>
                 <button
-                  onClick={() => router.push(`/chat/${user.id}`)}
+                  onClick={async () => {
+                    try {
+                      const currentUserId = (session?.user as any)?.id;
+                      if (!currentUserId) {
+                        console.error('[PROFILE] Current user ID not available');
+                        return;
+                      }
+                      
+                      console.log('[PROFILE] Opening chat with user:', user.id, 'from:', currentUserId);
+                      
+                      // Fetch or create 1:1 chat with this user
+                      const userIdsParam = `${currentUserId},${user.id}`;
+                      console.log('[PROFILE] Querying 1:1 chat with userIds:', userIdsParam);
+                      
+                      const res = await fetch(`/api/chats?userIds=${userIdsParam}`, { credentials: 'include' });
+                      const data = await res.json();
+                      let chatId = data.chat?.id;
+                      
+                      console.log('[PROFILE] API response:', { hasChat: !!data.chat, chatId });
+                      
+                      // If no 1:1 chat exists, create it
+                      if (!chatId) {
+                        console.log('[PROFILE] No 1:1 chat found, creating new one with userIds:', userIdsParam);
+                        const createRes = await fetch('/api/chats', {
+                          method: 'POST',
+                          credentials: 'include',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            name: null, // null = 1:1 chat
+                            userIds: [user.id] // Server will add current user automatically
+                          })
+                        });
+                        
+                        if (createRes.ok) {
+                          const createData = await createRes.json();
+                          chatId = createData.chat?.id;
+                          console.log('[PROFILE] Created 1:1 chat:', chatId);
+                        } else {
+                          const errData = await createRes.json();
+                          console.error('[PROFILE] Failed to create chat:', errData);
+                          return;
+                        }
+                      }
+                      
+                      if (chatId) {
+                        console.log('[PROFILE] Navigating to chat:', chatId);
+                        router.push(`/chat/${chatId}`);
+                      }
+                    } catch (err) {
+                      console.error('[PROFILE] Failed to open chat:', err);
+                    }
+                  }}
                   title="Открыть чат"
                   className="profile-action-btn"
                   aria-label="Open chat"

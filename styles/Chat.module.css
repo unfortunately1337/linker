@@ -56,11 +56,10 @@
 .headerButton:hover {
   background: rgba(255, 255, 255, 0.08);
   color: #cbd5e0;
-  transform: rotate(90deg);
 }
 
 .headerButton:active {
-  transform: rotate(90deg) scale(0.95);
+  scale: 0.95;
 }
 
 .chatList {
@@ -531,7 +530,6 @@
   width: calc(100% - 24px);
   box-sizing: border-box;
   border-radius: 28px;
-  box-shadow: 0 -12px 32px rgba(0, 0, 0, 0.2);
   margin: 0 auto 12px auto;
   margin-top: 16px;
 }
@@ -549,8 +547,7 @@
   resize: none;
   max-height: 100px;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  letter-spacing: 0.2px;
-}
+  letter-spacing: 0.2px;  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);}
 
 .inputField:focus {
   outline: none;

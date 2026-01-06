@@ -128,6 +128,13 @@ interface Message {
   _failed?: boolean;
   // UI-only system message marker — rendered centered like day separators
   _system?: boolean;
+  // Sender info for group chats
+  senderInfo?: {
+    id: string;
+    login: string;
+    link?: string | null;
+    avatar?: string;
+  };
 }
 
 const ChatWithFriend: React.FC = () => {
@@ -163,6 +170,11 @@ const ChatWithFriend: React.FC = () => {
   // Исправить тип friend, чтобы поддерживать login, name, avatar, role
   const [friend, setFriend] = useState<{id: string, login?: string, name?: string, link?: string, avatar?: string | null, role?: string, status?: string} | null>(null);
   const [friendDisplayName, setFriendDisplayName] = useState<string>('');
+  // For group chats: store all participants with their data
+  const [groupMembers, setGroupMembers] = useState<Array<{id: string, login: string, link?: string, avatar?: string | null, role?: string}>>([]);
+  const [isGroup, setIsGroup] = useState(false);
+  const [groupName, setGroupName] = useState<string | null>(null);
+  const [groupAvatar, setGroupAvatar] = useState<string | null>(null);
   const [chatId, setChatId] = useState<string | null>(null);
   // Chat background URL (local per-chat, stored in localStorage like Telegram)
   const [chatBgUrl, setChatBgUrl] = useState<string | null>(null);
@@ -224,6 +236,21 @@ const ChatWithFriend: React.FC = () => {
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const recordInterval = useRef<NodeJS.Timeout | null>(null);
+  const [showGroupMenu, setShowGroupMenu] = useState(false);
+  const [deletingGroup, setDeletingGroup] = useState(false);
+  const [editingGroupName, setEditingGroupName] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [savingGroupName, setSavingGroupName] = useState(false);
+  const [editingGroupAvatar, setEditingGroupAvatar] = useState(false);
+  const [savingGroupAvatar, setSavingGroupAvatar] = useState(false);
+  // For 1:1 chats menu
+  const [showPrivateMenu, setShowPrivateMenu] = useState(false);
+  const [isUserBlocked, setIsUserBlocked] = useState(false);
+  const [blockingUser, setBlockingUser] = useState(false);
+  // For chat background
+  const [editingChatBg, setEditingChatBg] = useState(false);
+  const [chatBgInput, setChatBgInput] = useState('');
+  const [savingChatBg, setSavingChatBg] = useState(false);
 
   // Call control (starts phone/video calls)
   const call = useCall();
@@ -336,15 +363,188 @@ const ChatWithFriend: React.FC = () => {
     }
   };
 
+  const deleteGroup = async () => {
+    if (!chatId || !isGroup || !confirm('Вы уверены, что хотите удалить эту группу?')) return;
+    
+    setDeletingGroup(true);
+    try {
+      const res = await fetch('/api/chats', {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chatId }),
+      });
+      
+      if (res.ok) {
+        window.location.href = '/chat';
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Ошибка при удалении группы');
+      }
+    } catch (error) {
+      console.error('Delete group error:', error);
+      alert('Ошибка при удалении группы');
+    } finally {
+      setDeletingGroup(false);
+      setShowGroupMenu(false);
+    }
+  };
+
+  const updateGroupName = async () => {
+    if (!chatId || !newGroupName.trim()) return;
+    
+    setSavingGroupName(true);
+    try {
+      const res = await fetch('/api/chats', {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chatId, name: newGroupName.trim() }),
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        setGroupName(data.chat?.name || newGroupName);
+        setFriendDisplayName(newGroupName);
+        setEditingGroupName(false);
+        setNewGroupName('');
+      } else {
+        alert('Ошибка при изменении названия');
+      }
+    } catch (error) {
+      console.error('Update group name error:', error);
+      alert('Ошибка при изменении названия');
+    } finally {
+      setSavingGroupName(false);
+    }
+  };
+
+  const updateGroupAvatar = async (file: File) => {
+    if (!chatId) return;
+    
+    setSavingGroupAvatar(true);
+    try {
+      // Read file as data URL
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const dataUrl = e.target?.result as string;
+        
+        const res = await fetch('/api/chats', {
+          method: 'PATCH',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chatId, avatarUrl: dataUrl }),
+        });
+        
+        if (res.ok) {
+          const data = await res.json();
+          setGroupAvatar(data.chat?.avatarUrl || null);
+          setEditingGroupAvatar(false);
+        } else {
+          alert('Ошибка при загрузке аватара');
+        }
+        setSavingGroupAvatar(false);
+      };
+      reader.onerror = () => {
+        alert('Ошибка при чтении файла');
+        setSavingGroupAvatar(false);
+      };
+      reader.readAsDataURL(file);
+    } catch (error) {
+      console.error('Update group avatar error:', error);
+      alert('Ошибка при загрузке аватара');
+      setSavingGroupAvatar(false);
+    }
+  };
+
+  // Блокировать/разблокировать пользователя в 1:1 чате
+  const blockUser = async () => {
+    if (!friend || !friend.id) return;
+    
+    console.log('[BLOCK] Starting block/unblock, current state:', isUserBlocked);
+    setBlockingUser(true);
+    try {
+      const res = await fetch('/api/chats/block', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          targetUserId: friend.id, 
+          blocked: !isUserBlocked 
+        }),
+      });
+      
+      console.log('[BLOCK] Response status:', res.status);
+      
+      if (res.ok) {
+        const data = await res.json();
+        console.log('[BLOCK] Success response:', data);
+        setIsUserBlocked(!isUserBlocked);
+        setShowPrivateMenu(false);
+        alert('Успешно');
+      } else {
+        const error = await res.json();
+        console.log('[BLOCK] Error response:', error);
+        alert('Ошибка при блокировке пользователя');
+      }
+    } catch (error) {
+      console.error('Block user error:', error);
+      alert('Ошибка при блокировке пользователя');
+    } finally {
+      setBlockingUser(false);
+    }
+  };
+
+  // Сохранить фон чата
+  const saveChatBackground = async () => {
+    if (!chatId || !chatBgInput.trim()) return;
+    
+    setSavingChatBg(true);
+    try {
+      const res = await fetch('/api/chats/background', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chatId: chatId,
+          backgroundUrl: chatBgInput.trim() || null
+        }),
+      });
+      
+      if (res.ok) {
+        setChatBgUrl(chatBgInput.trim());
+        setEditingChatBg(false);
+        setChatBgInput('');
+        setShowPrivateMenu(false);
+        alert('Фон чата сохранён');
+      } else {
+        alert('Ошибка при сохранении фона');
+      }
+    } catch (error) {
+      console.error('Save background error:', error);
+      alert('Ошибка при сохранении фона');
+    } finally {
+      setSavingChatBg(false);
+    }
+  };
+
   // Закрываем меню действий при клике вне
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
-      if (!openActionMsgId) return;
       const target = e.target as HTMLElement | null;
       if (!target) return;
-      // если клик внутри контейнера действия — не закрываем
-      if (target.closest(`[data-action-container="${openActionMsgId}"]`)) return;
-      setOpenActionMsgId(null);
+      
+      // закрываем меню действий сообщения
+      if (openActionMsgId) {
+        if (!target.closest(`[data-action-container="${openActionMsgId}"]`)) {
+          setOpenActionMsgId(null);
+        }
+      }
+      
+      // закрываем меню группы
+      if (showGroupMenu && !target.closest('[data-group-menu]')) {
+        setShowGroupMenu(false);
+      }
     };
     document.addEventListener('click', onDocClick);
     return () => document.removeEventListener('click', onDocClick);
@@ -509,41 +709,85 @@ const ChatWithFriend: React.FC = () => {
   useEffect(() => {
     if (!session || !id || Array.isArray(id)) return;
     setUserId((session.user as any).id);
-    // Получить друга по ID
-    fetch(`/api/profile?userId=${id}`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.user) {
-          setFriend(data.user);
-          const displayName = getFriendDisplayName(data.user.id, data.user.link ? `@${data.user.link}` : (data.user.login || data.user.name || ''));
-          setFriendDisplayName(displayName);
-        }
-      });
-    // --- Получить или создать чат между двумя пользователями ---
-    fetch(`/api/chats?userIds=${(session.user as any).id},${id}`)
-      .then(res => res.json())
+    const chatId = id as string;
+    
+    console.log('[CHAT-LOAD] Loading chat:', chatId);
+    
+    // --- Получить информацию о чате (может быть группа или 1:1) ---
+    fetch(`/api/chats?chatId=${chatId}`, { credentials: 'include' })
+      .then(res => {
+        console.log('[CHAT-LOAD] Response status:', res.status);
+        return res.json();
+      })
       .then((data) => {
-        const chatId = data?.chat?.id;
-        // If no chat exists, users are not friends yet - show empty state
-        if (!chatId) {
+        console.log('[CHAT-LOAD] Chat data received:', data);
+        const chat = data?.chat;
+        // If no chat exists, return empty state
+        if (!chat) {
+          console.warn('[CHAT-LOAD] Chat not found');
           setChatId(null);
           setMessages([]);
+          setIsGroup(false);
           return;
         }
         
-        setChatId(chatId);
+        const _isGroup = !!chat.name;
+        console.log('[CHAT-LOAD] Is group:', _isGroup, 'chat.name:', chat.name);
+        setIsGroup(_isGroup);
+        setGroupName(chat.name || null);
+        setGroupAvatar(chat.avatarUrl || null);
+        setChatId(chat.id);
+        
+        // Load block status for 1:1 chats
+        if (!_isGroup && data.userBlockedContact !== undefined) {
+          console.log('[CHAT-LOAD] User blocked contact:', data.userBlockedContact);
+          setIsUserBlocked(data.userBlockedContact);
+        }
+        
+        // Load background URL from API
+        if (data.backgroundUrl) {
+          console.log('[CHAT-LOAD] Background URL loaded:', data.backgroundUrl);
+          setChatBgUrl(data.backgroundUrl);
+        }
+        
+        if (_isGroup) {
+          // Group chat: load all members
+          console.log('[CHAT-LOAD] Loading group members:', chat.users);
+          setGroupMembers(chat.users || []);
+          const displayName = chat.name || 'Группа';
+          setFriendDisplayName(displayName);
+        } else {
+          // 1:1 chat: load the other user as "friend"
+          console.log('[CHAT-LOAD] Loading 1:1 chat, users:', chat.users);
+          const otherUser = chat.users.find((u: any) => u.id !== (session.user as any).id);
+          console.log('[CHAT-LOAD] Other user:', otherUser);
+          if (otherUser) {
+            setFriend(otherUser);
+            const displayName = getFriendDisplayName(otherUser.id, otherUser.link ? `@${otherUser.link}` : (otherUser.login || ''));
+            setFriendDisplayName(displayName);
+          } else {
+            console.error('[CHAT-LOAD] Other user not found in 1:1 chat');
+          }
+        }
+        
         // load per-chat background URL from localStorage
         try {
-          const key = `chat-bg-${chatId}`;
+          const key = `chat-bg-${chat.id}`;
           const stored = typeof window !== 'undefined' ? localStorage.getItem(key) : null;
           if (stored) setChatBgUrl(stored);
         } catch (e) {
           console.warn('[CHAT BG] failed to read localStorage', e);
         }
+        
         // Получить сообщения
-        fetch(`/api/messages?chatId=${chatId}&limit=60`, { credentials: 'include' })
-          .then(res => res.json())
+        console.log('[CHAT-LOAD] Fetching messages for chat:', chat.id);
+        fetch(`/api/messages?chatId=${chat.id}&limit=60`, { credentials: 'include' })
+          .then(res => {
+            console.log('[CHAT-LOAD] Messages response status:', res.status);
+            return res.json();
+          })
           .then(data => {
+            console.log('[CHAT-LOAD] Messages data:', data);
             if (Array.isArray(data.messages)) {
                       const msgs = data.messages.map((msg: any) => ({
                           id: msg.id,
@@ -554,8 +798,10 @@ const ChatWithFriend: React.FC = () => {
                           videoUrl: msg.videoUrl || undefined,
                           thumbnailUrl: msg.thumbnailUrl || undefined,
                           status: msg.status || 'sent',
-                          reactions: msg.reactions || []
+                          reactions: msg.reactions || [],
+                          senderInfo: msg.senderInfo || undefined
                         }));
+                console.log('[CHAT-LOAD] Loaded', msgs.length, 'messages');
                 setMessages(msgs);
                 // Прокручиваем в конец после загрузки сообщений
                 setTimeout(() => {
@@ -592,10 +838,18 @@ const ChatWithFriend: React.FC = () => {
                   localStorage.setItem('chat-messages', JSON.stringify(msgs));
                 } catch {}
               } else {
+                console.error('[CHAT-LOAD] Messages is not an array:', data);
                 setMessages([]);
                 try { localStorage.removeItem('chat-messages'); } catch {}
               }
+            })
+            .catch(err => {
+              console.error('[CHAT-LOAD] Error loading messages:', err);
+              setMessages([]);
             });
+      })
+      .catch(err => {
+        console.error('[CHAT-LOAD] Error loading chat:', err);
       });
   }, [session, id]);
 
@@ -726,7 +980,8 @@ const ChatWithFriend: React.FC = () => {
           createdAt: payload.createdAt || new Date().toISOString(),
           audioUrl: payload.audioUrl,
           videoUrl: payload.videoUrl,
-          reactions: payload.reactions || []
+          reactions: payload.reactions || [],
+          senderInfo: payload.senderInfo || undefined
         };
 
         setMessages(prev => {
@@ -940,6 +1195,12 @@ const ChatWithFriend: React.FC = () => {
     e.preventDefault();
     if (!newMessage.trim() || !chatId || !session) return;
     
+    // Проверяем блокировку в 1:1 чатах
+    if (!isGroup && isUserBlocked) {
+      alert('Вы не можете отправлять сообщения заблокированному пользователю');
+      return;
+    }
+    
     // Создаем временный ID для сообщения
     const tempId = 'temp-' + Date.now();
     const messageText = newMessage.trim();
@@ -952,7 +1213,13 @@ const ChatWithFriend: React.FC = () => {
       text: messageText,
       createdAt: new Date().toISOString(),
       status: 'sent' as const,
-      reactions: []
+      reactions: [],
+      senderInfo: isGroup ? {
+        id: (session.user as any)?.id || '',
+        login: (session.user as any)?.name || '',
+        link: (session.user as any)?.link || null,
+        avatar: (session.user as any)?.image || null
+      } : undefined
     };
     
     setMessages(prev => [...prev, tempMessage]);
@@ -1018,6 +1285,7 @@ const ChatWithFriend: React.FC = () => {
               videoUrl: serverMsg.videoUrl,
               audioUrl: serverMsg.audioUrl,
               reactions: serverMsg.reactions || [],
+              senderInfo: serverMsg.senderInfo || msg.senderInfo,
               _persisted: serverMsg.persisted !== false,
             } : msg);
           } catch (e) {
@@ -1205,8 +1473,24 @@ const ChatWithFriend: React.FC = () => {
           }
         `}</style>
       </Head>
-      <div className={styles.chatPageContainer}>
-        <div className={styles.chatPageHeader}>
+      <div 
+        className={styles.chatPageContainer}
+        style={{
+          backgroundImage: chatBgUrl ? `url('${chatBgUrl}')` : undefined,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundAttachment: 'fixed',
+          backgroundRepeat: 'no-repeat'
+        }}
+      >
+        <div 
+          className={styles.chatPageHeader}
+          style={chatBgUrl ? {
+            background: 'rgba(20, 21, 26, 0.6)',
+            backdropFilter: 'blur(8px)',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.05)'
+          } : undefined}
+        >
           <div className={styles.chatPageHeaderLeft}>
             <button
               onClick={() => router.push('/chat')}
@@ -1221,19 +1505,40 @@ const ChatWithFriend: React.FC = () => {
           </div>
           
           <div className={styles.chatPageHeaderInfo}>
-            <div className={styles.chatPageHeaderTitle} style={{cursor: 'pointer'}} onClick={() => friend && router.push(`/profile/${friend.id}`)}>
-              <img src={friend?.avatar || '/window.svg'} alt="avatar" className={styles.chatPageHeaderAvatar} style={{cursor: 'pointer'}} />
+            <div className={styles.chatPageHeaderTitle} style={{cursor: isGroup ? 'default' : 'pointer'}} onClick={() => !isGroup && friend && router.push(`/profile/${friend.id}`)}>
+              {isGroup ? (
+                <div style={{
+                  width: 44, height: 44, borderRadius: '50%', position: 'relative', display: 'flex',
+                  alignItems: 'center', justifyContent: 'center', background: groupAvatar ? 'transparent' : 'rgba(51, 153, 255, 0.15)',
+                  border: groupAvatar ? 'none' : '2px solid rgba(51, 153, 255, 0.3)', fontSize: 20, color: '#3399ff', overflow: 'hidden'
+                }}>
+                  {groupAvatar ? (
+                    <img src={groupAvatar} alt="group" style={{width: '100%', height: '100%', objectFit: 'cover'}} />
+                  ) : (
+                    <span>👥</span>
+                  )}
+                </div>
+              ) : (
+                <img src={friend?.avatar || '/window.svg'} alt="avatar" className={styles.chatPageHeaderAvatar} style={{cursor: 'pointer'}} />
+              )}
               <div style={{display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 3}}>
                 <div style={{display: 'flex', alignItems: 'center', gap: 6}}>
-                  <span style={{cursor: 'pointer'}}>{friendDisplayName || <span style={{color:'#888'}}>Загрузка...</span>}</span>
-                  {friend?.role === 'admin' && <img src="/role-icons/admin.svg" alt="admin" title="Админ" style={{ width: 14, height: 14 }} />}
-                  {friend?.role === 'moderator' && <img src="/role-icons/moderator.svg" alt="moderator" title="Модератор" style={{ width: 14, height: 14 }} />}
-                  {friend?.role === 'verif' && <img src="/role-icons/verif.svg" alt="verif" title="Верифицирован" style={{ width: 14, height: 14 }} />}
-                  {friend?.role === 'pepe' && <img src="/role-icons/pepe.svg" alt="pepe" title="Пепешка" style={{ width: 14, height: 14 }} />}
+                  {isGroup && (
+                    <img src="/group-icon.svg" alt="group" style={{width: 18, height: 18, opacity: 0.9}} />
+                  )}
+                  <span style={{cursor: isGroup ? 'default' : 'pointer'}}>{friendDisplayName || <span style={{color:'#888'}}>Загрузка...</span>}</span>
+                  {!isGroup && friend?.role === 'admin' && <img src="/role-icons/admin.svg" alt="admin" title="Админ" style={{ width: 14, height: 14 }} />}
+                  {!isGroup && friend?.role === 'moderator' && <img src="/role-icons/moderator.svg" alt="moderator" title="Модератор" style={{ width: 14, height: 14 }} />}
+                  {!isGroup && friend?.role === 'verif' && <img src="/role-icons/verif.svg" alt="verif" title="Верифицирован" style={{ width: 14, height: 14 }} />}
+                  {!isGroup && friend?.role === 'pepe' && <img src="/role-icons/pepe.svg" alt="pepe" title="Пепешка" style={{ width: 14, height: 14 }} />}
                 </div>
                 <div className={styles.chatPageHeaderStatus} style={{fontSize: 11, marginLeft: 0}}>
-                  {isTyping ? (
+                  {isGroup ? (
+                    <span style={{ color: '#888' }}>{groupMembers.length} участников</span>
+                  ) : isTyping ? (
                     <span style={{ color: '#64b5f6' }}>печатает...</span>
+                  ) : isUserBlocked ? (
+                    <span style={{ color: '#888' }}>был(а) в сети очень давно</span>
                   ) : (
                     friend?.status === 'dnd' ? 'был(а) недавно' : (friend?.status === 'online' ? 'в сети' : 'не в сети')
                   )}
@@ -1244,28 +1549,40 @@ const ChatWithFriend: React.FC = () => {
 
           <div className={styles.chatPageHeaderRight}>
             <div style={{display: 'flex', alignItems: 'center', gap: 0, background: 'rgba(15, 15, 20, 0.8)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: 24, padding: '6px 10px', backdropFilter: 'blur(8px)'}}>
+              {!isGroup && (
+                <>
+                  <button
+                    aria-label="Позвонить"
+                    title="Позвонить"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!friend || !friend.id) return;
+                      try { call.startCall({ type: 'phone', targetId: friend.id, targetName: friendDisplayName || friend.link ? `@${friend.link}` : (friend.login || friend.name), targetAvatar: friend.avatar || undefined }); } catch (err) {}
+                    }}
+                    style={{background: 'transparent', border: 'none', padding: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64b5f6', transition: 'all 0.2s'}}
+                    onMouseEnter={(e) => {e.currentTarget.style.color = '#64b5f6'}}
+                    onMouseLeave={(e) => {e.currentTarget.style.color = '#64b5f6'}}
+                  >
+                    <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                    </svg>
+                  </button>
+                  <div style={{width: '1px', height: 16, background: 'rgba(255, 255, 255, 0.1)'}} />
+                </>
+              )}
               <button
-                aria-label="Позвонить"
-                title="Позвонить"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (!friend || !friend.id) return;
-                  try { call.startCall({ type: 'phone', targetId: friend.id, targetName: friendDisplayName || friend.link ? `@${friend.link}` : (friend.login || friend.name), targetAvatar: friend.avatar || undefined }); } catch (err) {}
-                }}
-                style={{background: 'transparent', border: 'none', padding: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64b5f6', transition: 'all 0.2s'}}
-                onMouseEnter={(e) => {e.currentTarget.style.color = '#64b5f6'}}
-                onMouseLeave={(e) => {e.currentTarget.style.color = '#64b5f6'}}
-              >
-                <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
-                </svg>
-              </button>
-              <div style={{width: '1px', height: 16, background: 'rgba(255, 255, 255, 0.1)'}} />
-              <button
+                data-group-menu
                 aria-label="Меню"
                 title="Меню"
-                onClick={(e) => {e.stopPropagation()}}
-                style={{background: 'transparent', border: 'none', padding: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64b5f6', transition: 'all 0.2s'}}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (isGroup) {
+                    setShowGroupMenu(!showGroupMenu);
+                  } else {
+                    setShowPrivateMenu(!showPrivateMenu);
+                  }
+                }}
+                style={{background: 'transparent', border: 'none', padding: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64b5f6', transition: 'all 0.2s', position: 'relative'}}
                 onMouseEnter={(e) => {e.currentTarget.style.color = '#64b5f6'}}
                 onMouseLeave={(e) => {e.currentTarget.style.color = '#64b5f6'}}
               >
@@ -1274,11 +1591,119 @@ const ChatWithFriend: React.FC = () => {
                   <circle cx="12" cy="12" r="2"/>
                   <circle cx="12" cy="19" r="2"/>
                 </svg>
+                {showGroupMenu && isGroup && (
+                  <div data-group-menu style={{position: 'absolute', top: '100%', right: 0, background: 'rgba(20, 21, 26, 0.95)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: 12, marginTop: 8, backdropFilter: 'blur(8px)', boxShadow: '0 8px 24px rgba(0, 0, 0, 0.4)', zIndex: 1000, display: 'flex', flexDirection: 'column', gap: 0, padding: 0, minWidth: 180, overflow: 'hidden'}}>
+                    {/* Edit name button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setNewGroupName(groupName || '');
+                        setEditingGroupName(true);
+                      }}
+                      title="Сменить название"
+                      style={{width: '100%', padding: '12px 16px', background: 'transparent', border: 'none', color: '#e6eef8', cursor: 'pointer', textAlign: 'left', borderRadius: 0, transition: 'background 0.15s', display: 'flex', alignItems: 'center', gap: 12, fontSize: 14, borderBottom: '1px solid rgba(255, 255, 255, 0.05)'}}
+                      onMouseEnter={(e) => {e.currentTarget.style.background = 'rgba(100, 181, 246, 0.12)'}}
+                      onMouseLeave={(e) => {e.currentTarget.style.background = 'transparent'}}
+                    >
+                      <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 20h9"/>
+                        <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19H4v-3L16.5 3.5z"/>
+                      </svg>
+                      <span>Сменить название</span>
+                    </button>
+
+                    {/* Edit avatar button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingGroupAvatar(true);
+                      }}
+                      title="Сменить аватар"
+                      style={{width: '100%', padding: '12px 16px', background: 'transparent', border: 'none', color: '#e6eef8', cursor: 'pointer', textAlign: 'left', borderRadius: 0, transition: 'background 0.15s', display: 'flex', alignItems: 'center', gap: 12, fontSize: 14, borderBottom: '1px solid rgba(255, 255, 255, 0.05)'}}
+                      onMouseEnter={(e) => {e.currentTarget.style.background = 'rgba(100, 181, 246, 0.12)'}}
+                      onMouseLeave={(e) => {e.currentTarget.style.background = 'transparent'}}
+                    >
+                      <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                        <circle cx="8.5" cy="8.5" r="1.5"/>
+                        <polyline points="21 15 16 10 5 21"/>
+                      </svg>
+                      <span>Сменить аватар</span>
+                    </button>
+
+                    {/* Delete group button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteGroup();
+                      }}
+                      disabled={deletingGroup}
+                      title="Удалить группу"
+                      style={{width: '100%', padding: '12px 16px', background: 'transparent', border: 'none', color: '#ff6b6b', cursor: deletingGroup ? 'not-allowed' : 'pointer', textAlign: 'left', borderRadius: 0, transition: 'background 0.15s', display: 'flex', alignItems: 'center', gap: 12, fontSize: 14, opacity: deletingGroup ? 0.5 : 1}}
+                      onMouseEnter={(e) => {if (!deletingGroup) e.currentTarget.style.background = 'rgba(255, 107, 107, 0.12)'}}
+                      onMouseLeave={(e) => {e.currentTarget.style.background = 'transparent'}}
+                    >
+                      <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6"/>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"/>
+                      </svg>
+                      <span>Удалить группу</span>
+                    </button>
+                  </div>
+                )}
+                {showPrivateMenu && !isGroup && (
+                  <div data-private-menu style={{position: 'absolute', top: '100%', right: 0, background: 'rgba(20, 21, 26, 0.95)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: 12, marginTop: 8, backdropFilter: 'blur(8px)', boxShadow: '0 8px 24px rgba(0, 0, 0, 0.4)', zIndex: 1000, display: 'flex', flexDirection: 'column', gap: 0, padding: 0, minWidth: 180, overflow: 'hidden'}}>
+                    {/* Block/Unblock button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        blockUser();
+                      }}
+                      disabled={blockingUser}
+                      title={isUserBlocked ? 'Разблокировать' : 'Заблокировать'}
+                      style={{width: '100%', padding: '12px 16px', background: 'transparent', border: 'none', color: isUserBlocked ? '#4fc3f7' : '#e6eef8', cursor: blockingUser ? 'not-allowed' : 'pointer', textAlign: 'left', borderRadius: 0, transition: 'background 0.15s', display: 'flex', alignItems: 'center', gap: 12, fontSize: 14, opacity: blockingUser ? 0.5 : 1}}
+                      onMouseEnter={(e) => {if (!blockingUser) e.currentTarget.style.background = 'rgba(100, 181, 246, 0.12)'}}
+                      onMouseLeave={(e) => {e.currentTarget.style.background = 'transparent'}}
+                    >
+                      <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10"/>
+                        <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+                      </svg>
+                      <span>{isUserBlocked ? 'Разблокировать' : 'Заблокировать'}</span>
+                    </button>
+
+                    {/* Chat background button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingChatBg(true);
+                        setChatBgInput(chatBgUrl || '');
+                      }}
+                      title="Установить фон чата"
+                      style={{width: '100%', padding: '12px 16px', background: 'transparent', border: 'none', color: '#e6eef8', cursor: 'pointer', textAlign: 'left', borderRadius: 0, transition: 'background 0.15s', display: 'flex', alignItems: 'center', gap: 12, fontSize: 14}}
+                      onMouseEnter={(e) => {e.currentTarget.style.background = 'rgba(100, 181, 246, 0.12)'}}
+                      onMouseLeave={(e) => {e.currentTarget.style.background = 'transparent'}}
+                    >
+                      <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                        <circle cx="8.5" cy="8.5" r="1.5"/>
+                        <polyline points="21 15 16 10 5 21"/>
+                      </svg>
+                      <span>Фон чата</span>
+                    </button>
+                  </div>
+                )}
               </button>
             </div>
           </div>
         </div>
-        <div className={styles.messagesContainer} ref={chatScrollRef}>
+        <div 
+          className={styles.messagesContainer} 
+          ref={chatScrollRef}
+          style={chatBgUrl ? {
+            background: 'transparent'
+          } : undefined}
+        >
           {!chatId ? (
             <div style={{ color: '#bbb', fontSize: 16, textAlign: 'center', marginTop: 32 }}><i>Нет общего чата. Добавьте в друзья, чтобы начать переписку</i></div>
           ) : messages.length === 0 ? (
@@ -1326,6 +1751,11 @@ const ChatWithFriend: React.FC = () => {
                     }
 
                     const isOwn = msg.sender === (session?.user as any)?.id;
+                    
+                    // In group chats: get sender name
+                    const senderName = isGroup 
+                      ? groupMembers.find(m => m.id === msg.sender)?.login || 'Unknown'
+                      : null;
                     // --- callback ref для анимации только для новых сообщений ---
                     const getMsgRef = (el: HTMLDivElement | null) => {
                       if (el && animatedMsgIds.has(msg.id)) {
@@ -1462,6 +1892,47 @@ const ChatWithFriend: React.FC = () => {
                               <VoiceMessage audioUrl={msg.audioUrl} isOwn={isOwn} />
                             ) : (
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: isOwn ? 'flex-end' : 'flex-start', position: 'relative' }}>
+                                {/* Show sender name/link in group chats (for messages from others) */}
+                                {isGroup && !isOwn && msg.senderInfo && (
+                                  (() => {
+                                    // Get custom name if exists
+                                    const customName = getFriendDisplayName(msg.senderInfo.id, msg.senderInfo.link ? `@${msg.senderInfo.link}` : msg.senderInfo.login);
+                                    const isCustomName = customName !== (msg.senderInfo.link ? `@${msg.senderInfo.link}` : msg.senderInfo.login);
+                                    
+                                    // If it's a custom name, show as plain text instead of link
+                                    if (isCustomName) {
+                                      return (
+                                        <span style={{
+                                          fontSize: 12,
+                                          color: '#ffffff',
+                                          fontWeight: 600,
+                                          marginBottom: '2px'
+                                        }}>
+                                          {customName}
+                                        </span>
+                                      );
+                                    }
+                                    
+                                    // Otherwise show as white link
+                                    return (
+                                      <a 
+                                        href={msg.senderInfo.link ? `/profile/${msg.senderInfo.link}` : `/profile/${msg.senderInfo.id}`}
+                                        style={{ 
+                                          fontSize: 12, 
+                                          color: '#ffffff',
+                                          fontWeight: 600, 
+                                          marginBottom: '2px',
+                                          textDecoration: 'none',
+                                          transition: 'opacity 0.2s'
+                                        }}
+                                        onMouseEnter={(e) => {e.currentTarget.style.opacity = '0.8'}}
+                                        onMouseLeave={(e) => {e.currentTarget.style.opacity = '1'}}
+                                      >
+                                        {msg.senderInfo.link ? `@${msg.senderInfo.link}` : msg.senderInfo.login}
+                                      </a>
+                                    );
+                                  })()
+                                )}
                                 <div className={isOwn ? styles.messageTextOwn : styles.messageTextOther}>
                                   <span>{msg.text}</span>
                                 </div>
@@ -1807,7 +2278,16 @@ const ChatWithFriend: React.FC = () => {
         <form
           onSubmit={handleSendMessage}
           className={styles.inputArea}
-          style={{ opacity: !chatId ? 0.5 : 1, pointerEvents: !chatId ? 'none' : 'auto' }}
+          style={{ 
+            opacity: !chatId ? 0.5 : 1, 
+            pointerEvents: !chatId ? 'none' : 'auto',
+            ...(chatBgUrl && {
+              background: 'rgba(20, 21, 26, 0.6)',
+              backdropFilter: 'blur(8px)',
+              borderTop: 'none',
+              boxShadow: 'none'
+            })
+          }}
         >
           {/* Кнопка скрепки слева */}
           <button
@@ -1960,79 +2440,96 @@ const ChatWithFriend: React.FC = () => {
           />
           {/* Always render the input and controls so the layout doesn't shift; the recording UI will overlay when active */}
           <>
-            <input
-              value={newMessage}
-              onChange={(e) => {
-                const v = e.target.value;
-                setNewMessage(v);
-                maybeStartTyping(v);
-              }}
-              placeholder="Сообщение..."
-              className={styles.inputField}
-            />
-
-            {/* Video button */}
-            <button
-              type="button"
-              className={styles.inputButton}
-              title="Видео сообщение"
-              aria-label="Видео сообщение"
-              onClick={() => setShowVideoPreview(true)}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polygon points="23 7 16 12 23 17 23 7" />
-                <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
-              </svg>
-            </button>
-            {newMessage.trim() ? (
+            {!isGroup && isUserBlocked ? (
+              // If user blocked the contact - show unblock button instead of input
               <button
-                type="submit"
-                className={styles.inputButton}
-                aria-label="Отправить"
-                title="Отправить"
-                style={{ color: 'rgba(100, 181, 246, 1)' }}
+                onClick={() => blockUser()}
+                disabled={blockingUser}
+                style={{flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 16px', background: 'transparent', border: 'none', color: '#64b5f6', cursor: blockingUser ? 'not-allowed' : 'pointer', fontSize: 13, opacity: blockingUser ? 0.6 : 1, transition: 'all 0.2s'}}
+                onMouseEnter={(e) => {if (!blockingUser) e.currentTarget.style.opacity = '0.8'}}
+                onMouseLeave={(e) => {if (!blockingUser) e.currentTarget.style.opacity = '1'}}
               >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="none">
-                  <path d="M16.6915026,12.4744748 L3.50612381,13.2599618 C3.19218622,13.2599618 3.03521743,13.4170592 3.03521743,13.5741566 L1.15159189,20.0151496 C0.8376543,20.8006365 0.99,21.89 1.77946707,22.52 C2.41,22.99 3.50612381,23.1 4.13399899,22.8429026 L21.714504,14.0454487 C22.6563168,13.5741566 23.1272231,12.6315722 22.9702544,11.6889879 L4.13399899,1.16346272 C3.34915502,0.9 2.40734225,0.9 1.77946707,1.4705957 C0.994623095,2.0411913 0.837654326,3.1302744 1.15159189,3.9157613 L3.03521743,10.3567542 C3.03521743,10.5138516 3.19218622,10.671149 3.50612381,10.671149 L16.6915026,11.4566365 C16.6915026,11.4566365 17.1624089,11.4566365 17.1624089,12.0272321 C17.1624089,12.5978278 16.6915026,12.4744748 16.6915026,12.4744748 Z" />
+                <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
                 </svg>
+                <span>{blockingUser ? 'Разблокирование...' : 'Разблокировать'}</span>
               </button>
             ) : (
-              <button
-                type="button"
-                className={styles.inputButton}
-                aria-label="Голосовое сообщение"
-                title="Голосовое сообщение"
-                style={{ color: isRecording ? '#ef4444' : 'rgba(100, 181, 246, 0.7)' }}
-                onClick={async () => {
-                  if (!isRecording) {
-                    // Начать запись
-                    try {
-                      if (!navigator.mediaDevices) {
-                        alert('Your browser does not support audio recording');
-                        return;
-                      }
-                      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                      // Используем audio/webm если поддерживается
-                      let mimeType = 'audio/webm';
-                      if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = '';
-                      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
-                      
-                      audioChunksRef.current = [];
-                      
-                      recorder.ondataavailable = (e) => {
-                        audioChunksRef.current.push(e.data);
-                      };
-                      
-                      recorder.onstop = async () => {
-                        if (recordInterval.current) clearInterval(recordInterval.current);
-                        setIsRecording(false);
-                        setRecordTime(0);
-                        
-                        console.log('[VOICE] Recording stopped, chunks:', audioChunksRef.current.length);
-                        
-                        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType || 'audio/webm' });
-                        console.log('[VOICE] Blob created, size:', audioBlob.size);
-                        audioChunksRef.current = [];
+              <>
+                <input
+                  value={newMessage}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setNewMessage(v);
+                    maybeStartTyping(v);
+                  }}
+                  placeholder="Сообщение..."
+                  className={styles.inputField}
+                />
+
+                {/* Video button */}
+                <button
+                  type="button"
+                  className={styles.inputButton}
+                  title="Видео сообщение"
+                  aria-label="Видео сообщение"
+                  onClick={() => setShowVideoPreview(true)}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polygon points="23 7 16 12 23 17 23 7" />
+                    <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+                  </svg>
+                </button>
+                {newMessage.trim() ? (
+                  <button
+                    type="submit"
+                    className={styles.inputButton}
+                    aria-label="Отправить"
+                    title="Отправить"
+                    style={{ color: 'rgba(100, 181, 246, 1)' }}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                      <path d="M16.6915026,12.4744748 L3.50612381,13.2599618 C3.19218622,13.2599618 3.03521743,13.4170592 3.03521743,13.5741566 L1.15159189,20.0151496 C0.8376543,20.8006365 0.99,21.89 1.77946707,22.52 C2.41,22.99 3.50612381,23.1 4.13399899,22.8429026 L21.714504,14.0454487 C22.6563168,13.5741566 23.1272231,12.6315722 22.9702544,11.6889879 L4.13399899,1.16346272 C3.34915502,0.9 2.40734225,0.9 1.77946707,1.4705957 C0.994623095,2.0411913 0.837654326,3.1302744 1.15159189,3.9157613 L3.03521743,10.3567542 C3.03521743,10.5138516 3.19218622,10.671149 3.50612381,10.671149 L16.6915026,11.4566365 C16.6915026,11.4566365 17.1624089,11.4566365 17.1624089,12.0272321 C17.1624089,12.5978278 16.6915026,12.4744748 16.6915026,12.4744748 Z" />
+                    </svg>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className={styles.inputButton}
+                    aria-label="Голосовое сообщение"
+                    title="Голосовое сообщение"
+                    style={{ color: isRecording ? '#ef4444' : 'rgba(100, 181, 246, 0.7)' }}
+                    onClick={async () => {
+                      if (!isRecording) {
+                        // Начать запись
+                        try {
+                          if (!navigator.mediaDevices) {
+                            alert('Your browser does not support audio recording');
+                            return;
+                          }
+                          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                          // Используем audio/webm если поддерживается
+                          let mimeType = 'audio/webm';
+                          if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = '';
+                          const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+                          
+                          audioChunksRef.current = [];
+                          
+                          recorder.ondataavailable = (e) => {
+                            audioChunksRef.current.push(e.data);
+                          };
+                          
+                          recorder.onstop = async () => {
+                            if (recordInterval.current) clearInterval(recordInterval.current);
+                            setIsRecording(false);
+                            setRecordTime(0);
+                            
+                            console.log('[VOICE] Recording stopped, chunks:', audioChunksRef.current.length);
+                            
+                            const audioBlob = new Blob(audioChunksRef.current, { type: mimeType || 'audio/webm' });
+                            console.log('[VOICE] Blob created, size:', audioBlob.size);
+                            audioChunksRef.current = [];
                         
                         // Stop all tracks after data is collected
                         stream.getTracks().forEach(track => track.stop());
@@ -2133,6 +2630,8 @@ const ChatWithFriend: React.FC = () => {
                   <line x1="8" y1="23" x2="16" y2="23" />
                 </svg>
               </button>
+            )}
+              </>
             )}
           </>
         </form>
@@ -2305,7 +2804,114 @@ const ChatWithFriend: React.FC = () => {
             </div>
           </div>
         )}
-  {/* (удалено дублирующееся отображение индикатора записи) */}
+        {/* (удалено дублирующееся отображение индикатора записи) */}
+
+        {/* Modal: Edit group name */}
+        {editingGroupName && (
+          <div style={{position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100vh', background: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px'}} onClick={() => setEditingGroupName(false)}>
+            <div style={{background: 'rgba(20, 21, 26, 0.95)', border: '1px solid rgba(255, 255, 255, 0.1)', padding: 24, minWidth: 320, maxWidth: '90vw', backdropFilter: 'blur(8px)', boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)'}} onClick={(e) => e.stopPropagation()}>
+              <h3 style={{color: '#e6eef8', marginBottom: 16, fontSize: 16}}>Изменить название группы</h3>
+              <input 
+                type="text" 
+                value={newGroupName}
+                onChange={(e) => setNewGroupName(e.target.value)}
+                placeholder="Новое название"
+                autoFocus
+                style={{width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid rgba(100, 181, 246, 0.3)', background: 'rgba(30, 32, 42, 0.8)', color: '#fff', fontSize: 14, boxSizing: 'border-box', marginBottom: 16}}
+              />
+              <div style={{display: 'flex', gap: 8, justifyContent: 'flex-end'}}>
+                <button 
+                  onClick={() => setEditingGroupName(false)}
+                  style={{padding: '8px 16px', border: 'none', background: 'transparent', color: '#e6eef8', cursor: 'pointer', transition: 'all 0.2s'}}
+                  onMouseEnter={(e) => e.currentTarget.style.color = '#64b5f6'}
+                  onMouseLeave={(e) => e.currentTarget.style.color = '#e6eef8'}
+                >
+                  Отмена
+                </button>
+                <button 
+                  onClick={updateGroupName}
+                  disabled={savingGroupName}
+                  style={{padding: '8px 16px', border: 'none', background: 'transparent', color: '#64b5f6', cursor: savingGroupName ? 'not-allowed' : 'pointer', transition: 'all 0.2s', opacity: savingGroupName ? 0.6 : 1}}
+                  onMouseEnter={(e) => {if (!savingGroupName) e.currentTarget.style.color = '#3399ff'}}
+                  onMouseLeave={(e) => {if (!savingGroupName) e.currentTarget.style.color = '#64b5f6'}}
+                >
+                  {savingGroupName ? 'Сохранение...' : 'Сохранить'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Edit group avatar */}
+        {editingGroupAvatar && (
+          <div style={{position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100vh', background: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px'}} onClick={() => setEditingGroupAvatar(false)}>
+            <div style={{background: 'rgba(20, 21, 26, 0.95)', border: '1px solid rgba(255, 255, 255, 0.1)', padding: 24, minWidth: 320, maxWidth: '90vw', backdropFilter: 'blur(8px)', boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)'}} onClick={(e) => e.stopPropagation()}>
+              <h3 style={{color: '#e6eef8', marginBottom: 24, fontSize: 16, fontWeight: 600}}>Изменить аватар группы</h3>
+              <input 
+                id="groupAvatarInput"
+                type="file"
+                accept="image/*"
+                onChange={(e) => {
+                  const file = e.currentTarget.files?.[0];
+                  if (file) {
+                    updateGroupAvatar(file);
+                  }
+                }}
+                style={{display: 'none'}}
+              />
+              <label htmlFor="groupAvatarInput" style={{display: 'block', width: '100%', padding: '16px', borderRadius: 0, border: '1px solid rgba(100, 181, 246, 0.3)', background: 'rgba(30, 32, 42, 0.8)', color: '#64b5f6', cursor: 'pointer', textAlign: 'center', marginBottom: 24, transition: 'all 0.2s', fontSize: 14, boxSizing: 'border-box'}} onMouseEnter={(e) => {e.currentTarget.style.background = 'rgba(30, 32, 42, 0.95)'; e.currentTarget.style.borderColor = 'rgba(100, 181, 246, 0.6)'}} onMouseLeave={(e) => {e.currentTarget.style.background = 'rgba(30, 32, 42, 0.8)'; e.currentTarget.style.borderColor = 'rgba(100, 181, 246, 0.3)'}}>
+                Выберите файл
+              </label>
+              <div style={{display: 'flex', gap: 12, justifyContent: 'flex-end', paddingTop: 8}}>
+                <button 
+                  onClick={() => setEditingGroupAvatar(false)}
+                  style={{padding: '10px 20px', border: 'none', background: 'transparent', color: '#e6eef8', cursor: 'pointer', transition: 'all 0.2s', fontSize: 14}}
+                  onMouseEnter={(e) => e.currentTarget.style.color = '#64b5f6'}
+                  onMouseLeave={(e) => e.currentTarget.style.color = '#e6eef8'}
+                >
+                  Отмена
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Edit chat background */}
+        {editingChatBg && (
+          <div style={{position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100vh', background: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px'}} onClick={() => setEditingChatBg(false)}>
+            <div style={{background: 'rgba(20, 21, 26, 0.95)', border: '1px solid rgba(255, 255, 255, 0.1)', padding: 24, minWidth: 320, maxWidth: '90vw', backdropFilter: 'blur(8px)', boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)'}} onClick={(e) => e.stopPropagation()}>
+              <h3 style={{color: '#e6eef8', marginBottom: 16, fontSize: 16, fontWeight: 600}}>Установить фон чата</h3>
+              <p style={{color: '#888', fontSize: 13, marginBottom: 16}}>Введите URL изображения</p>
+              <input 
+                type="text" 
+                value={chatBgInput}
+                onChange={(e) => setChatBgInput(e.target.value)}
+                placeholder="https://example.com/image.jpg"
+                autoFocus
+                style={{width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid rgba(100, 181, 246, 0.3)', background: 'rgba(30, 32, 42, 0.8)', color: '#fff', fontSize: 14, boxSizing: 'border-box', marginBottom: 16}}
+              />
+              <div style={{display: 'flex', gap: 8, justifyContent: 'flex-end', paddingTop: 8}}>
+                <button 
+                  onClick={() => setEditingChatBg(false)}
+                  style={{padding: '8px 16px', border: 'none', background: 'transparent', color: '#e6eef8', cursor: 'pointer', transition: 'all 0.2s'}}
+                  onMouseEnter={(e) => e.currentTarget.style.color = '#64b5f6'}
+                  onMouseLeave={(e) => e.currentTarget.style.color = '#e6eef8'}
+                >
+                  Отмена
+                </button>
+                <button 
+                  onClick={saveChatBackground}
+                  disabled={savingChatBg}
+                  style={{padding: '8px 16px', border: 'none', background: 'transparent', color: '#64b5f6', cursor: savingChatBg ? 'not-allowed' : 'pointer', transition: 'all 0.2s', opacity: savingChatBg ? 0.6 : 1}}
+                  onMouseEnter={(e) => {if (!savingChatBg) e.currentTarget.style.color = '#3399ff'}}
+                  onMouseLeave={(e) => {if (!savingChatBg) e.currentTarget.style.color = '#64b5f6'}}
+                >
+                  {savingChatBg ? 'Сохранение...' : 'Сохранить'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </>
   );
