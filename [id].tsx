@@ -63,7 +63,7 @@ const ChatWithFriend: React.FC = () => {
   const { id } = router.query;
   const { data: session, status } = useSession();
 
-  // Подключение к SSE
+  // Подключение к Pusher
   useEffect(() => {
     if (!chatId || !session) {
       console.log('[CHAT] useEffect: skipping, chatId=' + chatId + ', session=' + !!session);
@@ -77,7 +77,7 @@ const ChatWithFriend: React.FC = () => {
       return;
     }
     
-    console.log('[CHAT] 🔌 Setting up SSE listeners for chatId=' + chatId);
+    console.log('[CHAT] 🔌 Setting up Pusher listeners for chatId=' + chatId);
     let speakingTimeout: NodeJS.Timeout | null = null;
 
     const onTyping = (data: { userId: string, name: string }) => {
@@ -110,7 +110,7 @@ const ChatWithFriend: React.FC = () => {
           return [...prevMessages, {
             id: data.id,
             sender: data.senderId,
-            text: data.text || '[Новое сообщение]', // Fallback text if not provided by SSE
+            text: data.text || '[Новое сообщение]', // Fallback text if not provided by Pusher
             createdAt: data.createdAt,
             audioUrl: data.audioUrl,
             videoUrl: data.videoUrl,

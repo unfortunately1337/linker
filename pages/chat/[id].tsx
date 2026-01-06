@@ -1129,11 +1129,11 @@ const ChatWithFriend: React.FC = () => {
       const onMessageReactionsChanged = (data: any) => {
         try {
           if (!data || !data.messageId) return;
-          console.log('[SSE] message-reactions-changed event received:', data);
+          console.log('[PUSHER] message-reactions-changed event received:', data);
           setMessages(prev => {
             const updated = prev.map(m => {
               if (m.id === data.messageId) {
-                console.log('[SSE] Updating message reactions:', m.id);
+                console.log('[PUSHER] Updating message reactions:', m.id);
                 return { ...m, reactions: data.reactions || [] };
               }
               return m;
@@ -1141,33 +1141,39 @@ const ChatWithFriend: React.FC = () => {
             return updated;
           });
         } catch (e) {
-          console.error('[SSE] message-reactions-changed handler error', e);
+          console.error('[PUSHER] message-reactions-changed handler error', e);
         }
       };
 
-      socketClient?.on('status-changed', onStatus);
-      socketClient?.on('new-message', onNewMessage);
-      socketClient?.on('typing-indicator', onTypingIndicator);
-      socketClient?.on('message-deleted', onMessageDeleted);
-      socketClient?.on('viewer-state', onViewer);
-      socketClient?.on('message-status-changed', onMessageStatusChanged);
-      socketClient?.on('message-reactions-changed', onMessageReactionsChanged);
-      socketClient?.on('reaction-added', onMessageReactionsChanged);  // Alternative name
-      socketClient?.on('reaction-removed', onMessageReactionsChanged);  // Alternative name
+      socketClient?.on(`chat-${chatId}:new-message`, onNewMessage);
+      socketClient?.on(`chat-${chatId}:typing-indicator`, onTypingIndicator);
+      socketClient?.on(`chat-${chatId}:message-deleted`, onMessageDeleted);
+      socketClient?.on(`chat-${chatId}:viewer-state`, onViewer);
+      socketClient?.on(`chat-${chatId}:message-status-changed`, onMessageStatusChanged);
+      socketClient?.on(`chat-${chatId}:message-reactions-changed`, onMessageReactionsChanged);
+      socketClient?.on(`chat-${chatId}:reaction-added`, onMessageReactionsChanged);  // Alternative name
+      socketClient?.on(`chat-${chatId}:reaction-removed`, onMessageReactionsChanged);  // Alternative name
+      
+      // Subscribe to user status changes for 1:1 chats
+      if (friend?.id) {
+        socketClient?.on(`user-${friend.id}:status-changed`, onStatus);
+      }
       
       // cleanup
       return () => {
         try {
           try { stopTyping(); } catch (e) {}
-          try { socketClient?.off('status-changed', onStatus); } catch (e) {}
-          try { socketClient?.off('new-message', onNewMessage); } catch (e) {}
-          try { socketClient?.off('typing-indicator', onTypingIndicator); } catch (e) {}
-          try { socketClient?.off('message-deleted', onMessageDeleted); } catch (e) {}
-          try { socketClient?.off('viewer-state', onViewer); } catch (e) {}
-          try { socketClient?.off('message-status-changed', onMessageStatusChanged); } catch (e) {}
-          try { socketClient?.off('message-reactions-changed', onMessageReactionsChanged); } catch (e) {}
-          try { socketClient?.off('reaction-added', onMessageReactionsChanged); } catch (e) {}
-          try { socketClient?.off('reaction-removed', onMessageReactionsChanged); } catch (e) {}
+          try { socketClient?.off(`chat-${chatId}:new-message`, onNewMessage); } catch (e) {}
+          try { socketClient?.off(`chat-${chatId}:typing-indicator`, onTypingIndicator); } catch (e) {}
+          try { socketClient?.off(`chat-${chatId}:message-deleted`, onMessageDeleted); } catch (e) {}
+          try { socketClient?.off(`chat-${chatId}:viewer-state`, onViewer); } catch (e) {}
+          try { socketClient?.off(`chat-${chatId}:message-status-changed`, onMessageStatusChanged); } catch (e) {}
+          try { socketClient?.off(`chat-${chatId}:message-reactions-changed`, onMessageReactionsChanged); } catch (e) {}
+          try { socketClient?.off(`chat-${chatId}:reaction-added`, onMessageReactionsChanged); } catch (e) {}
+          try { socketClient?.off(`chat-${chatId}:reaction-removed`, onMessageReactionsChanged); } catch (e) {}
+          if (friend?.id) {
+            try { socketClient?.off(`user-${friend.id}:status-changed`, onStatus); } catch (e) {}
+          }
         } catch (e) {}
       };
     } catch (e) {

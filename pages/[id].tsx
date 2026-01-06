@@ -809,17 +809,16 @@ const ChatWithFriend: React.FC = () => {
         }
       };
 
-      socketClient?.on('new-message', onNewMessage);
-      socketClient?.on('typing-indicator', onTypingIndicator);
-      socketClient?.on('viewer-state', onViewer);
+      socketClient?.on(`chat-${chatId}:new-message`, onNewMessage);
+      socketClient?.on(`chat-${chatId}:typing-indicator`, onTypingIndicator);
+      socketClient?.on(`chat-${chatId}:viewer-state`, onViewer);
 
       // cleanup
       return () => {
         try {
-          try { socketClient?.off('status-changed', onStatus); } catch (e) {}
-          try { socketClient?.off('new-message', onNewMessage); } catch (e) {}
-          try { socketClient?.off('typing-indicator', onTypingIndicator); } catch (e) {}
-          try { socketClient?.off('viewer-state', onViewer); } catch (e) {}
+          try { socketClient?.off(`chat-${chatId}:new-message`, onNewMessage); } catch (e) {}
+          try { socketClient?.off(`chat-${chatId}:typing-indicator`, onTypingIndicator); } catch (e) {}
+          try { socketClient?.off(`chat-${chatId}:viewer-state`, onViewer); } catch (e) {}
         } catch (e) {}
       };
     } catch (e) {

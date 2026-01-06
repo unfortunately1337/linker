@@ -1,6 +1,4 @@
-import { getSSEClient, initializeSSE } from './sseClient';
-
-const USE_SSE = true;  // Always use SSE on client, Pusher support removed
+import { getPusherClient, initializePusher, disconnectPusher } from './pusherClient';
 
 interface SocketClientAdapter {
   emit: (event: string, data?: any) => void;
@@ -16,18 +14,18 @@ export function getSocketClient(): SocketClientAdapter | null {
   if (typeof window === 'undefined') return null;
   
   if (!socketClientAdapter) {
-    // Always use SSE adapter on client
-    socketClientAdapter = createSSEAdapter();
+    // Always use Pusher adapter on client
+    socketClientAdapter = createPusherAdapter();
   }
   
   return socketClientAdapter;
 }
 
 /**
- * Create SSE-based adapter
+ * Create Pusher-based adapter
  */
-function createSSEAdapter(): SocketClientAdapter {
-  let sseInitialized = false;
+function createPusherAdapter(): SocketClientAdapter {
+  let pusherInitialized = false;
 
   return {
     _channels: new Map(),
@@ -42,17 +40,17 @@ function createSSEAdapter(): SocketClientAdapter {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ chatId })
-          }).catch(e => console.error('[SSE] Failed to send typing event:', e));
+          }).catch(e => console.error('[PUSHER] Failed to send typing event:', e));
         }
       }
-      console.log('[SSE Adapter] Emit:', event, data);
+      console.log('[PUSHER-ADAPTER] Emit:', event, data);
     },
     
     on: (event: string, callback: (data: any) => void) => {
       const userId = (typeof window !== 'undefined') ? (window as any).__userId : null;
       const chatId = (typeof window !== 'undefined') ? (window as any).__chatId : null;
       
-      console.log(`[SOCKET-ADAPTER] on(${event}): userId=${userId}, chatId=${chatId}, sseInitialized=${sseInitialized}`);
+      console.log(`[SOCKET-ADAPTER] on(${event}): userId=${userId}, chatId=${chatId}, pusherInitialized=${pusherInitialized}`);
       
       // Store callback for this event
       if (!socketClientAdapter!._bindings.has(event)) {
@@ -60,30 +58,30 @@ function createSSEAdapter(): SocketClientAdapter {
       }
       socketClientAdapter!._bindings.get(event)!.push(callback);
       
-      // Get SSE client and register the listener (this works even if not connected yet)
-      const sseClient = getSSEClient();
-      console.log(`[SOCKET-ADAPTER] Registering callback on SSEClient for ${event}`);
-      sseClient.on(event, callback);
+      // Get Pusher client and register the listener
+      const pusherClient = getPusherClient();
+      console.log(`[SOCKET-ADAPTER] Registering callback on Pusher for ${event}`);
+      pusherClient.on(event, callback);
       
       console.log(`[SOCKET-ADAPTER] ✅ Listener registered: ${event}`);
       
-      // Initialize SSE connection if not already done (do this AFTER registering listener)
-      if (!sseInitialized && userId) {
-        console.log('[SOCKET-ADAPTER] 🔌 Initializing SSE with userId=' + userId + ', chatId=' + (chatId || 'none'));
-        sseInitialized = true;
+      // Initialize Pusher connection if not already done
+      if (!pusherInitialized && userId) {
+        console.log('[SOCKET-ADAPTER] 🔌 Initializing Pusher with userId=' + userId + ', chatId=' + (chatId || 'none'));
+        pusherInitialized = true;
         const initStartTime = Date.now();
-        initializeSSE(userId, chatId).then(() => {
+        initializePusher(userId, chatId).then(() => {
           const initDuration = Date.now() - initStartTime;
-          console.log(`[SOCKET-ADAPTER] ✅ SSE initialized successfully (${initDuration}ms)`);
+          console.log(`[SOCKET-ADAPTER] ✅ Pusher initialized successfully (${initDuration}ms)`);
         }).catch((err) => {
           const initDuration = Date.now() - initStartTime;
-          console.error(`[SOCKET-ADAPTER] ❌ Failed to initialize SSE after ${initDuration}ms:`, err);
-          sseInitialized = false;
+          console.error(`[SOCKET-ADAPTER] ❌ Failed to initialize Pusher after ${initDuration}ms:`, err);
+          pusherInitialized = false;
         });
-      } else if (sseInitialized) {
-        console.log('[SOCKET-ADAPTER] SSE already initialized');
+      } else if (pusherInitialized) {
+        console.log('[SOCKET-ADAPTER] Pusher already initialized');
       } else {
-        console.warn('[SOCKET-ADAPTER] ⚠️ userId is null, cannot initialize SSE');
+        console.warn('[SOCKET-ADAPTER] ⚠️ userId is null, cannot initialize Pusher');
       }
     },
     
@@ -95,9 +93,9 @@ function createSSEAdapter(): SocketClientAdapter {
         if (index > -1) callbacks.splice(index, 1);
       }
       
-      // Unregister from SSE client
-      const sseClient = getSSEClient();
-      sseClient.off(event, callback);
+      // Unregister from Pusher client
+      const pusherClient = getPusherClient();
+      pusherClient.off(event, callback);
     }
   };
 }

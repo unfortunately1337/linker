@@ -192,13 +192,13 @@ const ChatPage: React.FC = () => {
     }
   };
 
-  // SSE подписка на новые сообщения для обновления последних сообщений
+  // Pusher подписка на новые сообщения для обновления последних сообщений
   const socketRef = useRef<any>(null);
 
   useEffect(() => {
     fetchChats();
 
-    // Подписка на SSE для всех чатов
+    // Подписка на Pusher для всех чатов
     if (!chats.length) return;
     
     const meId = (session?.user as any)?.id as string | undefined;
@@ -236,7 +236,7 @@ const ChatPage: React.FC = () => {
     }
 
     return () => {
-      // cleanup not needed with SSE
+      // cleanup not needed with Pusher
     };
     // eslint-disable-next-line
   }, [session, chats.length]);

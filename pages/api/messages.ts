@@ -266,7 +266,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             // content omitted intentionally
           };
 
-          // Trigger chat channel and per-user channels in parallel (SSE/Pusher)
+          // Trigger chat channel and per-user channels in parallel (Pusher)
           try {
             await publishMessageEvent(chatId, 'new-message', messageMeta);
           } catch (e) {

@@ -586,16 +586,16 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       };
 
-      socketClient.on('webrtc-offer', onOffer);
-      socketClient.on('webrtc-answer', onAnswer);
-      socketClient.on('webrtc-candidate', onCandidate);
-      socketClient.on('webrtc-end', onEnd);
+      socketClient.on(`user-${(session.user as any).id}:webrtc-offer`, onOffer);
+      socketClient.on(`user-${(session.user as any).id}:webrtc-answer`, onAnswer);
+      socketClient.on(`user-${(session.user as any).id}:webrtc-candidate`, onCandidate);
+      socketClient.on(`user-${(session.user as any).id}:webrtc-end`, onEnd);
 
       return () => {
-        try { socketClient.off('webrtc-offer', onOffer); } catch (e) {}
-        try { socketClient.off('webrtc-answer', onAnswer); } catch (e) {}
-        try { socketClient.off('webrtc-candidate', onCandidate); } catch (e) {}
-        try { socketClient.off('webrtc-end', onEnd); } catch (e) {}
+        try { socketClient.off(`user-${(session.user as any).id}:webrtc-offer`, onOffer); } catch (e) {}
+        try { socketClient.off(`user-${(session.user as any).id}:webrtc-answer`, onAnswer); } catch (e) {}
+        try { socketClient.off(`user-${(session.user as any).id}:webrtc-candidate`, onCandidate); } catch (e) {}
+        try { socketClient.off(`user-${(session.user as any).id}:webrtc-end`, onEnd); } catch (e) {}
       };
     } catch (e) {}
   }, [session]);

@@ -1,8 +1,7 @@
-// Unified realtime adapter that can switch between Pusher and SSE
-import { publishSSEEvent } from './sse';
+// Unified realtime adapter that switches to Pusher for reliability
+import { broadcastToChat, broadcastToUser } from './pusher';
 
-// Check if Redis is configured (support both correct and legacy typo env names)
-const USE_SSE = (process.env.REDIS_URL || process.env.REDDIS_URL) ? true : false;
+const USE_PUSHER = true; // Always use Pusher
 
 interface RealtimeEvent {
   channel: string;
@@ -11,12 +10,20 @@ interface RealtimeEvent {
 }
 
 /**
- * Publish a realtime event using SSE
+ * Publish a realtime event using Pusher
  */
 export async function publishRealtimeEvent(channel: string, eventType: string, data: any): Promise<void> {
   try {
-    // Use SSE with Redis
-    await publishSSEEvent(channel, eventType, data);
+    // Extract channel type and ID
+    if (channel.startsWith('chat-')) {
+      const chatId = channel.replace('chat-', '');
+      await broadcastToChat(chatId, eventType, data);
+    } else if (channel.startsWith('user-')) {
+      const userId = channel.replace('user-', '');
+      await broadcastToUser(userId, eventType, data);
+    } else {
+      console.warn('[Realtime] Unknown channel type:', channel);
+    }
   } catch (err) {
     console.error('[Realtime] Error publishing event:', err);
   }
@@ -43,4 +50,4 @@ export async function publishChatEvent(chatId: string, eventType: 'typing-indica
   await publishRealtimeEvent(`chat-${chatId}`, eventType, data);
 }
 
-export { USE_SSE };
+export { USE_PUSHER };
